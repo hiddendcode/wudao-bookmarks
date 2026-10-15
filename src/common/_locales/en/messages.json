@@ -1,0 +1,22 @@
+{
+  "extName": {
+    "message": "Wudao Bookmark Manager",
+    "description": "Extension name shown in store title and browser toolbar"
+  },
+  "extDescription": {
+    "message": "Resizable sidebar bookmark manager: collapsible categories, dual search, drag-sort, dedup, import/export, custom shortcuts, standalone mode.",
+    "description": "Extension description shown in store listing (max 190 chars)"
+  },
+  "extActionTitle": {
+    "message": "Wudao Bookmark Manager (Click to open sidebar · Alt+1 toggle · Alt+2 open in new tab)",
+    "description": "Toolbar icon hover tooltip"
+  },
+  "cmdToggleSidebar": {
+    "message": "Toggle Wudao sidebar show/hide (replaces clicking the extension icon)",
+    "description": "Alt+1 global shortcut description"
+  },
+  "cmdOpenInNewTab": {
+    "message": "Open Wudao Bookmark Manager in a new tab",
+    "description": "Alt+2 global shortcut description"
+  }
+}

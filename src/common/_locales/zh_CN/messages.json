@@ -1,0 +1,22 @@
+{
+  "extName": {
+    "message": "悟道书签管理器",
+    "description": "扩展名称，显示在商店标题和浏览器工具栏"
+  },
+  "extDescription": {
+    "message": "单击图标即开可调大小的侧边栏：分类导航可手动收缩展开、双搜索栏、拖拽整理、去重、导入导出、扫码捐助。新装默认空白独立存储；可在配置中切换为浏览器书签同步模式；支持自定义快捷键（1 切换侧栏 / 2 新标签页打开）。",
+    "description": "扩展简介，显示在商店列表"
+  },
+  "extActionTitle": {
+    "message": "悟道书签管理器（单击打开侧边栏 · Alt+1 切换 · Alt+2 新标签页打开）",
+    "description": "工具栏图标悬停提示"
+  },
+  "cmdToggleSidebar": {
+    "message": "切换悟道侧边栏显示 / 关闭（替代单击扩展图标）",
+    "description": "全局快捷键 Alt+1 的说明"
+  },
+  "cmdOpenInNewTab": {
+    "message": "从新标签页中打开悟道书签管理器",
+    "description": "全局快捷键 Alt+2 的说明"
+  }
+}

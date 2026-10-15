@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>悟道书签管理器 · 主页与书签管理</title>
+<style>
+:root{
+  --bg:#0d1220; --bg2:#0a0f1a; --card:#151b2e; --card-hover:#1c2440; --card-border:#232d4a;
+  --text:#e8ecf6; --muted:#8b94ad; --accent:#5b8cff; --accent2:#7aa5ff; --accent-soft:rgba(91,140,255,.14);
+  --danger:#ff6b6b; --ok:#4cd97b; --warn:#ffb454; --pin:#ffcf5c;
+  --border:#242e4c; --shadow:0 8px 28px rgba(0,0,0,.42);
+  --radius:12px; --header-h:64px;
+}
+:root[data-theme="light"]{
+  --bg:#f2f4fa; --bg2:#e9edf6; --card:#ffffff; --card-hover:#f4f7ff; --card-border:#e0e6f3;
+  --text:#1a2233; --muted:#5f6b85; --accent:#3468fa; --accent2:#5b8cff; --accent-soft:rgba(52,104,250,.12);
+  --border:#dfe5f1; --shadow:0 8px 24px rgba(40,60,120,.10);
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--bg); color:var(--text); min-height:100vh;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  -webkit-font-smoothing:antialiased; font-size:14px;
+  background-image:radial-gradient(1200px 500px at 70% -10%, rgba(91,140,255,.08), transparent 60%),
+                   radial-gradient(900px 400px at 10% -5%, rgba(123,90,255,.06), transparent 55%);
+  background-attachment:fixed;
+}
+button{font-family:inherit}
+a{color:inherit}
+::selection{background:var(--accent-soft)}
+
+/* ===== 顶栏 ===== */
+header{
+  position:sticky; top:0; z-index:50; display:flex; align-items:center; gap:14px;
+  padding:0 22px; height:var(--header-h); background:color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
+  border-bottom:1px solid var(--border);
+}
+.brand{display:flex; align-items:center; gap:10px; cursor:pointer; user-select:none; flex:0 0 auto}
+.brand svg.logo{
+  border-radius:10px; box-shadow:0 4px 14px rgba(91,140,255,.35); flex:0 0 auto; display:block;
+}
+.brand b{font-size:16px;letter-spacing:.5px}
+.brand .stat{font-size:11px;color:var(--muted);margin-top:2px;font-weight:400}
+.searchwrap{position:relative; flex:2.4 1 360px; min-width:280px; max-width:860px}
+.searchwrap input{
+  width:100%; height:42px; border-radius:11px; border:1px solid var(--border);
+  background:var(--card); color:var(--text); font-size:14px; padding:0 14px 0 40px; outline:none;
+  transition:border-color .15s, box-shadow .15s;
+}
+.searchwrap input:focus{border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft)}
+.searchwrap .sicon{position:absolute; left:13px; top:50%; transform:translateY(-50%); opacity:.55; font-size:14px; pointer-events:none}
+.engwrap{display:flex; gap:6px; flex:0.6 1 180px; min-width:160px; max-width:260px; align-items:center}
+.engwrap select{
+  height:42px; border-radius:11px; border:1px solid var(--border); background:var(--card); color:var(--text);
+  font-size:12.5px; padding:0 6px; outline:none; cursor:pointer; max-width:84px; font-family:inherit; flex:0 0 auto;
+}
+.engwrap select:focus{border-color:var(--accent)}
+.engwrap input{
+  flex:1; min-width:60px; height:42px; border-radius:11px; border:1px solid var(--border);
+  background:var(--card); color:var(--text); font-size:13px; padding:0 10px; outline:none;
+  transition:border-color .15s, box-shadow .15s;
+}
+.engwrap input:focus{border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft)}
+.engwrap .go{min-width:42px; padding:0; justify-content:center}
+.hbtns{display:flex; gap:8px; flex:0 0 auto}
+.hbtn{
+  height:40px; min-width:40px; padding:0 12px; border-radius:10px; border:1px solid var(--border);
+  background:var(--card); color:var(--text); font-size:13px; cursor:pointer; display:flex; align-items:center; gap:6px;
+  transition:border-color .15s, background .15s; white-space:nowrap;
+}
+.hbtn:hover{border-color:var(--accent); background:var(--card-hover)}
+.hbtn.primary{background:linear-gradient(135deg,var(--accent),var(--accent2)); border-color:transparent; color:#fff; font-weight:600}
+.hbtn.primary:hover{filter:brightness(1.1)}
+.hbtn.danger-on{background:rgba(255,107,107,.14); border-color:rgba(255,107,107,.5); color:var(--danger)}
+
+/* ===== 搜索建议 ===== */
+.suggest{
+  position:absolute; top:48px; left:0; right:0; z-index:60; background:var(--card);
+  border:1px solid var(--border); border-radius:12px; box-shadow:var(--shadow);
+  overflow:hidden; max-height:64vh; overflow-y:auto; display:none;
+}
+.suggest.show{display:block}
+.suggest .gtitle{
+  position:sticky; top:0; z-index:1; padding:6px 14px; font-size:11px; color:var(--muted);
+  background:var(--bg2); border-bottom:1px solid var(--border); letter-spacing:.5px; user-select:none;
+}
+.suggest .gtitle b{color:var(--accent2)}
+.suggest .row{
+  display:flex; align-items:center; gap:10px; padding:9px 14px; cursor:pointer; border-bottom:1px solid color-mix(in srgb, var(--border) 60%, transparent);
+}
+.suggest .row:last-child{border-bottom:none}
+.suggest .row.sel, .suggest .row:hover{background:var(--card-hover)}
+.suggest .row img{width:18px;height:18px;border-radius:4px;flex:0 0 18px}
+.suggest .row .lf{width:18px;height:18px;border-radius:4px;flex:0 0 18px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700}
+.suggest .row .ico.lf{background:none;overflow:visible}
+.suggest .row .ico.lf img{width:18px;height:18px}
+.suggest .row .ico.lf span{width:18px;height:18px}
+.suggest .row .nm{flex:0 1 auto; max-width:42%; overflow:hidden;text-overflow:ellipsis;white-space:nowrap; font-size:13px}
+.suggest .row .pth{flex:1 1 auto; overflow:hidden;text-overflow:ellipsis;white-space:nowrap; font-size:11.5px; color:var(--muted); text-align:right}
+.suggest .row.folder .nm{font-weight:600}
+.suggest .row.folder .lf{font-size:15px; width:auto; flex:0 0 20px}
+.suggest .foot{padding:8px 14px; font-size:11px; color:var(--muted); background:var(--bg2); border-top:1px solid var(--border); display:flex; justify-content:space-between; gap:8px}
+.suggest .none{padding:16px; text-align:center; color:var(--muted); font-size:13px}
+.suggest mark{background:var(--accent-soft); color:var(--accent2); border-radius:2px; padding:0 1px}
+
+/* ===== 分类导航（分层换行：一级一行、二级一行…）· 高度可手动收缩 / 展开 ===== */
+.navwrap{
+  position:sticky; top:var(--header-h); z-index:40;
+  background:color-mix(in srgb, var(--bg) 82%, transparent);
+  backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+  border-bottom:1px solid color-mix(in srgb, var(--border) 70%, transparent);
+}
+nav{
+  display:flex; flex-direction:column; gap:3px;
+  padding:9px 22px; overflow-y:auto; overflow-x:hidden; overscroll-behavior:contain;
+  max-height:var(--nav-h, 320px); transition:max-height .16s ease;
+}
+body.nav-resizing nav{transition:none}
+body.nav-resizing{user-select:none; cursor:ns-resize}
+.nav-row{display:flex; flex-wrap:wrap; gap:7px; align-items:center}
+.nav-row.nav-sub .chip{font-size:12px; padding:5px 11px; opacity:.95}
+.nav-row.nav-sub .chip .cnt{font-size:10px}
+nav::-webkit-scrollbar{height:5px}
+nav::-webkit-scrollbar-thumb{background:var(--border); border-radius:4px}
+/* 分类栏现在是可滚动的裁剪容器，tooltip 改到标签下方显示，避免向上溢出被裁掉 */
+nav [data-tip]:hover::after{bottom:auto; top:calc(100% + 7px)}
+nav [data-tip]:hover::before{bottom:auto; top:calc(100% + 4px)}
+/* 拖拽把手：往下拉＝逐行展开，往上推＝逐行收起；双击恢复全部；↑↓ 微调 */
+.nav-grip{
+  height:16px; display:flex; align-items:center; justify-content:center; gap:8px;
+  cursor:ns-resize; user-select:none; touch-action:none; color:var(--muted);
+  border-top:1px dashed color-mix(in srgb, var(--border) 75%, transparent);
+  transition:background .15s, color .15s;
+}
+.nav-grip::before{
+  content:""; width:46px; height:3px; border-radius:3px; background:currentColor;
+  opacity:.4; transition:opacity .15s, width .15s;
+}
+.nav-grip:hover, .nav-grip:focus-visible{background:var(--accent-soft); color:var(--accent); outline:none}
+.nav-grip:hover::before{opacity:.9; width:64px}
+.nav-grip .nav-fold-txt{font-size:10.5px; white-space:nowrap; opacity:.85}
+.nav-grip .nav-fold{
+  display:inline-flex; align-items:center; margin-left:2px; white-space:nowrap;
+  border:1px solid var(--border); background:var(--card); color:var(--muted);
+  border-radius:9px; padding:0 9px; height:17px; font-size:11px; line-height:15px; cursor:pointer;
+  font-family:inherit; transition:all .15s;
+}
+.nav-grip .nav-fold:hover{border-color:var(--accent); color:var(--accent)}
+.nav-grip .nav-fold:focus-visible{outline:2px solid var(--accent); outline-offset:1px}
+.chip{
+  display:flex; align-items:center; gap:6px; padding:7px 14px; border-radius:20px; font-size:13px;
+  border:1px solid var(--border); background:var(--card); color:var(--muted); cursor:pointer;
+  white-space:nowrap; transition:all .15s; user-select:none;
+}
+.chip:hover{color:var(--text); border-color:var(--accent)}
+.chip.active{background:linear-gradient(135deg,var(--accent),var(--accent2)); border-color:transparent; color:#fff; font-weight:600}
+.chip .cnt{font-size:11px; opacity:.75; background:rgba(255,255,255,.14); padding:0 7px; border-radius:10px; line-height:17px}
+.chip:not(.active) .cnt{background:var(--bg2); color:var(--muted)}
+.chip.warn{color:var(--warn)}
+
+/* ===== 主区 ===== */
+main{max-width:1440px; margin:0 auto; padding:20px 22px 90px; min-height:calc(100vh - var(--header-h))}
+.crumb{display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-bottom:16px; font-size:13.5px}
+.crumb a{color:var(--muted); cursor:pointer; text-decoration:none; padding:4px 8px; border-radius:8px}
+.crumb a:hover{color:var(--text); background:var(--card-hover)}
+.crumb .cur{color:var(--text); font-weight:600; padding:4px 8px}
+.crumb .sep{color:var(--muted); opacity:.5}
+.crumb .fedit{margin-left:auto}
+
+section.cat{margin-bottom:26px}
+.sec-head{display:flex; align-items:center; gap:10px; margin-bottom:12px; flex-wrap:wrap}
+.sec-head .ic{font-size:17px}
+.sec-head h2{margin:0; font-size:14.5px; font-weight:600; letter-spacing:.3px; display:flex; align-items:center; gap:8px; cursor:pointer; user-select:none}
+.sec-head h2 .cnt{font-size:11px; font-weight:400; color:var(--muted); background:var(--card); border:1px solid var(--border); padding:1px 9px; border-radius:10px}
+.sec-head .to{margin-left:auto; display:flex; gap:8px}
+.sec-head .mini{
+  font-size:12px; padding:4px 12px; border-radius:16px; border:1px solid var(--border);
+  background:var(--card); color:var(--muted); cursor:pointer; transition:all .15s; white-space:nowrap;
+}
+.sec-head .mini:hover{color:var(--text); border-color:var(--accent)}
+
+.subchips{display:flex; gap:7px; flex-wrap:wrap; margin-bottom:12px}
+.subchips .chip{padding:5px 12px; font-size:12px}
+
+.grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(215px,1fr)); gap:10px}
+body.dense .grid{grid-template-columns:repeat(auto-fill, minmax(168px,1fr)); gap:7px}
+body.dense .bcard{padding:7px 9px; gap:8px}
+body.dense .bcard .ico{width:24px;height:24px;flex:0 0 24px}
+body.dense .bcard .ico img{width:15px;height:15px}
+body.dense .bcard .nm{font-size:12px}
+body.dense .bcard .ds{display:none}
+
+.bcard{
+  position:relative; display:flex; align-items:center; gap:10px; padding:10px 12px; min-width:0;
+  background:var(--card); border:1px solid var(--card-border); border-radius:var(--radius);
+  cursor:pointer; text-decoration:none;
+  transition:transform .13s, border-color .13s, background .13s, box-shadow .13s;
+}
+.bcard:hover{background:var(--card-hover); border-color:var(--accent); transform:translateY(-2px); box-shadow:0 6px 18px rgba(0,0,0,.22); color:var(--text)}
+.bcard.dragging{opacity:.35}
+.bcard.dragover{border-color:var(--accent2); box-shadow:0 0 0 2px var(--accent-soft)}
+.bcard .ico{
+  width:30px; height:30px; flex:0 0 30px; border-radius:8px; display:flex; align-items:center; justify-content:center;
+  background:var(--bg2); overflow:hidden; font-size:13px; font-weight:700;
+  /* 加载中或失败时显示一个柔和的占位底色，避免完全空白 */
+  background-image:linear-gradient(135deg, color-mix(in srgb, var(--bg2) 70%, var(--card)), var(--bg2));
+}
+.bcard .ico img{width:17px; height:17px; display:block; transition:opacity .15s}
+.bcard .ico span{color:var(--muted); opacity:.85; font-size:13px; font-weight:700}
+.bcard .meta{min-width:0; flex:1}
+.bcard .nm{font-size:13px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.bcard .ds{font-size:11px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:2px}
+.bcard .pinmark{position:absolute; top:-5px; right:-4px; font-size:13px; filter:drop-shadow(0 1px 2px rgba(0,0,0,.4))}
+.bcard .ops{
+  position:absolute; top:-9px; right:4px; display:none; gap:3px; background:var(--card); border:1px solid var(--border);
+  border-radius:9px; padding:2px; box-shadow:var(--shadow); z-index:5;
+}
+.bcard:hover .ops{display:flex}
+.ops button{
+  width:24px; height:24px; border:none; border-radius:7px; background:transparent; cursor:pointer; font-size:12px;
+  display:flex; align-items:center; justify-content:center; color:var(--muted); line-height:1;
+}
+.ops button:hover{background:var(--bg2); color:var(--text)}
+.ops button.danger:hover{background:rgba(255,107,107,.12); color:var(--danger)}
+.bcard .drag-handle{
+  position:absolute; left:2px; top:50%; transform:translateY(-50%); color:var(--muted); font-size:12px; cursor:grab; opacity:0; transition:opacity .12s;
+}
+body.manage .bcard:hover .drag-handle{opacity:.7}
+.bcard .script-tag{font-size:10px; color:var(--warn); border:1px solid var(--warn); border-radius:4px; padding:0 4px; margin-left:4px}
+@keyframes locatePulse{
+  0%,100%{box-shadow:none; border-color:var(--card-border)}
+  25%,65%{box-shadow:0 0 0 3px var(--accent), 0 6px 22px rgba(91,140,255,.45); border-color:var(--accent); transform:translateY(-2px)}
+}
+.bcard.locate-flash{animation:locatePulse 1.2s ease 2}
+
+/* 右键菜单 */
+.ctxmenu{
+  position:fixed; z-index:300; min-width:170px; background:var(--card); border:1px solid var(--border);
+  border-radius:10px; box-shadow:var(--shadow); padding:5px; display:none;
+}
+.ctxmenu.show{display:block}
+.ctxmenu .ctx-item{
+  padding:8px 12px; font-size:12.5px; color:var(--text); border-radius:7px; cursor:pointer;
+  display:flex; align-items:center; gap:8px; user-select:none;
+}
+.ctxmenu .ctx-item:hover{background:var(--accent-soft)}
+.ctxmenu .ctx-sep{height:1px; background:var(--border); margin:4px 8px}
+
+/* 即时 tooltip（悬停即现，替代原生 title 的 1-2 秒延迟） */
+[data-tip]{position:relative}
+[data-tip]:hover::after{
+  content:attr(data-tip); position:absolute; bottom:calc(100% + 7px); left:50%; transform:translateX(-50%);
+  background:#1b2436; color:#fff; font-size:11.5px; line-height:1.4; padding:6px 11px; border-radius:7px;
+  white-space:nowrap; pointer-events:none; z-index:230; box-shadow:0 5px 16px rgba(0,0,0,.45);
+  opacity:0; animation:tipIn .1s .06s forwards;
+}
+[data-tip]:hover::before{
+  content:""; position:absolute; bottom:calc(100% + 4px); left:50%; transform:translateX(-50%) rotate(45deg);
+  width:7px; height:7px; background:#1b2436; pointer-events:none; z-index:230;
+  opacity:0; animation:tipIn .1s .06s forwards;
+}
+@keyframes tipIn{to{opacity:1}}
+header [data-tip]:hover::after{bottom:auto; top:calc(100% + 7px)}
+header [data-tip]:hover::before{bottom:auto; top:calc(100% + 4px)}
+
+/* Firefox 式文件夹树形选择器 */
+.fpicker{position:relative}
+.fpicker .fp-show{
+  display:flex; align-items:center; justify-content:space-between; gap:8px; height:38px; padding:0 11px;
+  border-radius:9px; border:1px solid var(--border); background:var(--bg2); cursor:pointer; font-size:13px;
+  transition:border-color .15s; overflow:hidden;
+}
+.fpicker .fp-show:hover, .fpicker.open .fp-show{border-color:var(--accent)}
+.fpicker .fp-show .fp-lab{overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.fpicker .fp-arrow{color:var(--muted); font-size:12px; transition:transform .15s; flex:0 0 auto}
+.fpicker.open .fp-arrow{transform:rotate(180deg)}
+.fpicker .fp-tree{
+  display:none; position:absolute; top:calc(100% + 5px); left:0; right:0; z-index:90;
+  background:var(--card); border:1px solid var(--border); border-radius:10px; box-shadow:var(--shadow);
+  max-height:250px; overflow-y:auto; padding:5px;
+}
+.fpicker.open .fp-tree{display:block}
+.fp-row{display:flex; align-items:center; gap:6px; padding:7px 9px; border-radius:7px; cursor:pointer; font-size:13px; user-select:none; min-width:0}
+.fp-row:hover{background:var(--card-hover)}
+.fp-row.sel{background:var(--accent-soft); color:var(--accent2); font-weight:600}
+.fp-row .fp-a2{flex:0 0 14px; font-size:10px; color:var(--muted); text-align:center; width:14px}
+.fp-row .fp-nm{overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+
+/* 捐助 */
+.hbtn.donate{color:#ff7b92; border-color:rgba(255,123,146,.45)}
+.hbtn.donate:hover{background:rgba(255,123,146,.12); border-color:#ff7b92}
+.donate-grid{display:flex; gap:14px; justify-content:center; padding:8px 0 4px; flex-wrap:wrap; align-items:stretch}
+.donate-card{flex:0 0 44%; min-width:172px; text-align:center; display:flex; flex-direction:column}
+.donate-card img{width:100%; height:auto; min-height:170px; max-height:46vh; object-fit:contain; border:1px solid var(--border); border-radius:12px; background:var(--bg2); cursor:zoom-in; display:block}
+.donate-card .dl{margin:8px 0 2px; font-size:13px; font-weight:600}
+/* 收款码放大预览 */
+#imgMask{align-items:center; z-index:130}
+.lightbox{display:flex; flex-direction:column; align-items:center; gap:12px; max-width:100%; animation:pop .18s ease}
+.lightbox img{max-width:min(92vw,540px); max-height:76vh; width:auto; height:auto; border-radius:14px; background:#fff; box-shadow:var(--shadow); display:block}
+.lightbox .lb-tip{color:var(--muted); font-size:12px; text-align:center}
+
+/* 搜索引擎管理 */
+#engList{display:flex; flex-direction:column; gap:8px; margin-top:10px}
+.eng-row{display:flex; gap:6px; align-items:center; border:1px solid var(--border); border-radius:10px; padding:6px 8px; background:var(--bg2)}
+.eng-row.dragging{opacity:.35}
+.eng-row.dragover{border-color:var(--accent2); box-shadow:0 0 0 2px var(--accent-soft)}
+.eng-row .hnd{cursor:grab; color:var(--muted); font-size:13px; padding:0 4px; flex:0 0 auto}
+.eng-row input{height:34px; border-radius:8px; border:1px solid var(--border); background:var(--card); color:var(--text); padding:0 9px; font-size:12.5px; outline:none; font-family:inherit}
+.eng-row input:focus{border-color:var(--accent)}
+.eng-row input.eName{flex:0 0 108px}
+.eng-row input.eUrl{flex:1; min-width:0}
+.eng-row .eb{width:30px; height:30px; border-radius:8px; border:1px solid var(--border); background:transparent; color:var(--muted); cursor:pointer; font-size:12px; flex:0 0 30px; padding:0}
+.eng-row .eb:hover{color:var(--text); border-color:var(--accent)}
+.eng-row .eb.del:hover{color:var(--danger); border-color:var(--danger)}
+.hbtn.eg-mgr{min-width:38px; padding:0 8px; font-size:14px}
+.hbtn.density-on{background:var(--accent-soft); border-color:var(--accent); color:var(--accent2)}
+
+/* 管理模式下拖拽目标高亮 */
+.chip.dragover-folder{border-color:var(--ok); box-shadow:0 0 0 2px rgba(77,217,123,.25); background:rgba(77,217,123,.1)}
+
+.empty{color:var(--muted); text-align:center; padding:70px 0; font-size:14px}
+.showmore{
+  grid-column:1/-1; text-align:center; padding:10px; margin-top:4px; font-size:13px; color:var(--muted);
+  background:var(--card); border:1px dashed var(--border); border-radius:10px; cursor:pointer; transition:all .15s;
+}
+.showmore:hover{color:var(--accent); border-color:var(--accent)}
+
+/* ===== 重复检测 ===== */
+.dupgroup{background:var(--card); border:1px solid var(--border); border-radius:12px; margin-bottom:14px; overflow:hidden}
+.dupgroup .gh{
+  display:flex; align-items:flex-start; gap:8px; padding:10px 14px; font-size:13px;
+  background:var(--bg2); border-bottom:1px solid var(--border);
+}
+.dupgroup .gh .n{color:var(--warn); font-weight:600; white-space:nowrap; flex:0 0 auto}
+.dupgroup .gh .url-full{flex:1; min-width:0; word-break:break-all; line-height:1.6; color:var(--text); font-family:Consolas,Menlo,monospace; font-size:12px}
+.dupgroup .gr{display:flex; align-items:center; gap:10px; padding:8px 14px; border-bottom:1px solid color-mix(in srgb, var(--border) 55%, transparent); font-size:12.5px}
+.dupgroup .gr:last-child{border-bottom:none}
+.dupgroup .gr img{width:16px;height:16px;border-radius:4px}
+.dupgroup .gr .nmcol{flex:1; min-width:0}
+.dupgroup .gr .nmcol .nm{font-size:12.5px}
+.dupgroup .gr .nmcol .url-full{display:block; font-size:11.5px; color:var(--muted); word-break:break-all; line-height:1.5; margin-top:2px; font-family:Consolas,Menlo,monospace}
+.dupgroup .gr .pt{color:var(--muted); flex:0 1 auto; max-width:30%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.dupgroup .gr button{
+  border:1px solid var(--border); background:transparent; color:var(--muted); border-radius:7px;
+  padding:3px 10px; font-size:12px; cursor:pointer; flex:0 0 auto;
+}
+.dupgroup .gr button:hover{color:var(--danger); border-color:var(--danger)}
+
+/* ===== 通用按钮（模态底栏 .mf 之外也在用） ===== */
+.btn{
+  border-radius:10px; border:1px solid var(--border); background:var(--bg2); color:var(--text);
+  font-size:13.5px; padding:0 18px; height:38px; cursor:pointer; font-family:inherit; transition:all .15s;
+}
+.btn:hover{border-color:var(--accent); background:var(--card-hover)}
+.btn:focus-visible{outline:2px solid var(--accent); outline-offset:1px}
+
+/* ===== 模态 ===== */
+.mask{
+  position:fixed; inset:0; z-index:100; background:rgba(4,8,18,.55); backdrop-filter:blur(3px);
+  display:none; align-items:flex-start; justify-content:center; padding:60px 16px; overflow:auto;
+}
+.mask.show{display:flex}
+.modal{
+  width:100%; max-width:520px; background:var(--card); border:1px solid var(--border); border-radius:16px;
+  box-shadow:var(--shadow); animation:pop .18s ease;
+}
+@keyframes pop{from{transform:translateY(14px); opacity:0} to{transform:none; opacity:1}}
+.modal .mh{display:flex; align-items:center; padding:16px 20px 0; font-size:15.5px; font-weight:600}
+.modal .mh .x{margin-left:auto; border:none; background:transparent; color:var(--muted); font-size:17px; cursor:pointer; line-height:1; padding:4px}
+.modal .mh .x:hover{color:var(--text)}
+.modal .mb{padding:14px 20px 4px}
+.modal .mb .row2{display:flex; gap:10px}
+.modal .mb .row2>*{flex:1}
+.fld{margin-bottom:12px}
+.fld label{display:block; font-size:12px; color:var(--muted); margin-bottom:5px}
+.fld input[type=text], .fld input[type=url], .fld select, .fld textarea{
+  width:100%; height:38px; border-radius:9px; border:1px solid var(--border); background:var(--bg2);
+  color:var(--text); font-size:13.5px; padding:0 11px; outline:none; transition:border-color .15s; font-family:inherit;
+}
+.fld textarea{height:auto; padding:8px 11px; resize:vertical}
+.fld input:focus, .fld select:focus, .fld textarea:focus{border-color:var(--accent)}
+.fld .hint{font-size:11px; color:var(--muted); margin-top:4px}
+.fld .err{font-size:11px; color:var(--danger); margin-top:4px; display:none}
+.modal .mf{display:flex; gap:10px; padding:14px 20px 18px; align-items:center}
+.modal .mf .btn{
+  height:38px; padding:0 20px; border-radius:10px; border:1px solid var(--border); background:var(--bg2);
+  color:var(--text); font-size:13.5px; cursor:pointer; transition:all .15s;
+}
+.modal .mf .btn:hover{border-color:var(--accent)}
+.modal .mf .btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent2)); border-color:transparent; color:#fff; font-weight:600; flex:1}
+.modal .mf .btn.primary:hover{filter:brightness(1.08)}
+.modal .mf .btn.danger-text{color:var(--danger); border-color:rgba(255,107,107,.4); margin-right:auto}
+.modal .mf .btn.danger-text:hover{background:rgba(255,107,107,.1)}
+.modal .etabs{display:flex; gap:6px; margin-bottom:12px}
+.modal .etabs .tab{
+  flex:1; text-align:center; padding:8px; border-radius:9px; border:1px solid var(--border);
+  background:var(--bg2); font-size:13px; color:var(--muted); cursor:pointer;
+}
+.modal .etabs .tab.active{border-color:var(--accent); color:var(--text); background:var(--accent-soft); font-weight:600}
+.modal .drop{
+  border:2px dashed var(--border); border-radius:12px; padding:26px 16px; text-align:center; color:var(--muted);
+  font-size:13px; cursor:pointer; transition:all .15s;
+}
+.modal .drop:hover, .modal .drop.on{border-color:var(--accent); color:var(--accent); background:var(--accent-soft)}
+.modal .note{font-size:12px; color:var(--muted); margin:10px 0 2px; line-height:1.7}
+.modal .result{font-size:12.5px; padding:8px 12px; border-radius:8px; margin-top:10px; display:none; line-height:1.7}
+.modal .result.ok{display:block; background:rgba(77,217,123,.1); color:var(--ok)}
+.modal .result.bad{display:block; background:rgba(255,107,107,.1); color:var(--danger)}
+.radio-row{display:flex; gap:14px; margin:10px 0; font-size:13px; color:var(--muted)}
+.radio-row label{display:flex; align-items:center; gap:5px; cursor:pointer}
+
+/* ===== toast ===== */
+#toasts{position:fixed; top:76px; right:20px; z-index:200; display:flex; flex-direction:column; gap:8px}
+.toast{
+  padding:10px 18px; border-radius:10px; background:var(--card); border:1px solid var(--border); box-shadow:var(--shadow);
+  font-size:13px; max-width:340px; animation:pop .2s ease; border-left:3px solid var(--accent);
+}
+.toast.ok{border-left-color:var(--ok)}
+.toast.bad{border-left-color:var(--danger)}
+.toast.warn{border-left-color:var(--warn)}
+
+footer{max-width:1440px; margin:0 auto; padding:0 22px 26px; color:var(--muted); font-size:12px; text-align:center; opacity:.8}
+footer .tips{margin-top:4px}
+
+/* 中等宽度：顶栏按钮先收成纯图标，尽量保住单行（顶栏内容最小宽约 1220px） */
+@media (max-width:1240px){
+  .hbtn span{display:none}
+  .hbtn{padding:0 10px}
+}
+/* 窄窗口（侧边栏 / 被拖小的独立窗口）：顶栏换行，杜绝横向滚动条 */
+@media (max-width:1060px){
+  header{flex-wrap:wrap; height:auto; padding:10px 12px; row-gap:8px}
+  .searchwrap{order:3; flex-basis:100%; max-width:none}
+  .engwrap{order:4; flex-basis:100%; max-width:none}
+  .hbtns{order:2; margin-left:auto}
+  .hbtn{height:38px}
+}
+@media (max-width:760px){
+  .brand .stat{display:none}
+  main, nav{padding-left:12px; padding-right:12px}
+  .navwrap{top:auto; position:static}
+  .searchwrap input{height:38px}
+  .nav-grip .nav-fold-txt{display:none}
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand" id="brandHome" data-tip="回到首页">
+    <svg class="logo" viewBox="0 0 48 48" width="36" height="36" aria-label="悟道书签">
+      <defs><linearGradient id="wdlg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5b8cff"/><stop offset="1" stop-color="#8f6bff"/></linearGradient></defs>
+      <path d="M13 3 h22 c2.8 0 5 2.2 5 5 v31 c0 3.3 -3.9 5 -6.4 2.9 L24 34.2 14.4 41.9 C11.9 43.9 8 42.2 8 39 V8 c0-2.8 2.2-5 5-5 z" fill="url(#wdlg)"/>
+      <path d="M13.5 5.6 h21 c1.6 0 2.9 1.3 2.9 2.9 v27.7 l-11.7-7.9 q-1.2-.8-2.4 0 L11.6 36.2 V8.5 c0-1.6 1.3-2.9 2.9-2.9 z" fill="none" stroke="rgba(255,255,255,.55)" stroke-width="1.5"/>
+      <text x="24" y="19.8" text-anchor="middle" font-size="12.5" font-weight="700" fill="#ffffff" font-family="'PingFang SC','Microsoft YaHei',sans-serif">悟</text>
+      <text x="24" y="32.2" text-anchor="middle" font-size="12.5" font-weight="700" fill="#ffffff" font-family="'PingFang SC','Microsoft YaHei',sans-serif">道</text>
+    </svg>
+    <div>
+      <b>悟道书签管理器</b>
+      <div class="stat" id="statLine">加载中…</div>
+    </div>
+  </div>
+  <div class="searchwrap">
+    <span class="sicon">🔖</span>
+    <input type="text" id="searchInput" placeholder="搜索书签：名称 / 网址 / 描述 / 分类标签…（按 / 聚焦）" autocomplete="off" spellcheck="false">
+    <div class="suggest" id="suggestBox"></div>
+  </div>
+  <div class="engwrap">
+    <select id="engineSelect" aria-label="选择搜索引擎"></select>
+    <button class="hbtn eg-mgr" id="btnEngMgr" data-tip="添加 / 编辑 / 排序搜索引擎">✎</button>
+    <input type="text" id="engineInput" placeholder="搜网页…" autocomplete="off" spellcheck="false">
+    <button class="hbtn go" id="engineGo" data-tip="搜索">➤</button>
+  </div>
+  <div class="hbtns">
+    <button class="hbtn" id="btnOpenTab" data-tip="在浏览器新标签页中打开本管理器" style="display:none">⛶ <span>新标签页</span></button>
+    <button class="hbtn donate" id="btnDonate" data-tip="支持一下，请喝杯咖啡 ☕">❤ <span>捐助</span></button>
+    <button class="hbtn" id="btnData" data-tip="导入 / 导出 / 备份 / 重置 / 快捷键">⚙ <span>配置</span></button>
+    <button class="hbtn" id="btnDensity" data-tip="点击切换布局密度">▥ <span>宽松</span></button>
+    <button class="hbtn primary" id="btnAdd" data-tip="添加书签">➕ <span>添加书签</span></button>
+    <button class="hbtn" id="btnManage" data-tip="管理模式：拖拽排序、跨文件夹移动">🛠 <span>管理</span></button>
+    <button class="hbtn" id="btnTheme" data-tip="切换深浅主题">🌙</button>
+  </div>
+</header>
+
+<div class="navwrap" id="navWrap">
+  <nav id="navBar"></nav>
+  <div class="nav-grip" id="navGrip" role="separator" aria-orientation="horizontal" tabindex="0"
+       aria-label="分类栏高度调节，可拖动或用上下方向键"
+       title="拖动此条调节分类栏高度：往下拉逐行展开，往上推逐行收起 · 双击恢复全部 · ↑↓ 微调（Shift 加速）">
+    <span class="nav-fold-txt" id="navFoldTxt">拖动此条可逐行收起 / 展开</span>
+    <button class="nav-fold" id="navFold" type="button" aria-expanded="true" title="一键收起 / 展开全部分类">▾ 收起</button>
+  </div>
+</div>
+<main id="main"></main>
+<footer>
+  <div>书签数据保存在本机浏览器（localStorage），不上传任何服务器 · 修改后记得用「配置 → 导出备份」保存副本</div>
+  <div class="tips">双击即可打开 · 管理模式下卡片可拖拽排序、拖到分类标签可移动文件夹 · 文件夹标签支持双击编辑、右键菜单</div>
+</footer>
+
+<!-- 书签/文件夹 模态 -->
+<div class="mask" id="bmMask">
+  <div class="modal">
+    <div class="mh"><span id="bmTitle">添加书签</span><button class="x" data-close>✕</button></div>
+    <div class="mb">
+      <div class="fld"><label>名称 *</label><input type="text" id="bmName" maxlength="300" placeholder="书签名称"></div>
+      <div class="fld"><label>网址 URL *</label><input type="text" id="bmUrl" placeholder="https://…" spellcheck="false"><div class="err" id="bmUrlErr">请输入合法网址（http/https）</div></div>
+      <div class="fld"><label>所属文件夹（点击展开/收起子文件夹，点选后即为保存位置）</label>
+        <div class="fpicker" id="bmFolderPicker">
+          <div class="fp-show"><span class="fp-lab" id="bmFolderLabel"></span><span class="fp-arrow">▾</span></div>
+          <div class="fp-tree" id="bmFolderTree"></div>
+        </div>
+      </div>
+      <div class="fld"><label>描述（可选）</label><input type="text" id="bmDesc" maxlength="120" placeholder="备注说明"></div>
+      <div class="fld"><label>图标地址（可选，留空自动获取）</label><input type="text" id="bmIcon" placeholder="https://…/favicon.ico" spellcheck="false"></div>
+    </div>
+    <div class="mf">
+      <button class="btn danger-text" id="bmDelete" style="display:none">🗑 删除</button>
+      <button class="btn" data-close>取消</button>
+      <button class="btn primary" id="bmSave">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 文件夹 模态 -->
+<div class="mask" id="fdMask">
+  <div class="modal">
+    <div class="mh"><span id="fdTitle">新建文件夹</span><button class="x" data-close>✕</button></div>
+    <div class="mb">
+      <div class="fld"><label>文件夹名称 *</label><input type="text" id="fdName" maxlength="120"></div>
+      <div class="fld"><label>图标（点击选择，或输入任意 emoji）</label>
+        <div class="emoji-pick" id="fdEmojis"></div>
+        <input type="text" id="fdEmoji" maxlength="8" placeholder="📁" style="margin-top:8px">
+      </div>
+      <div class="fld"><label>父文件夹（点击展开/收起，点选后即为保存位置）</label>
+        <div class="fpicker" id="fdParentPicker">
+          <div class="fp-show"><span class="fp-lab" id="fdParentLabel"></span><span class="fp-arrow">▾</span></div>
+          <div class="fp-tree" id="fdParentTree"></div>
+        </div>
+      </div>
+    </div>
+    <div class="mf">
+      <button class="btn danger-text" id="fdDelete" style="display:none">🗑 删除</button>
+      <button class="btn" data-close>取消</button>
+      <button class="btn primary" id="fdSave">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 数据 模态 -->
+<div class="mask" id="dtMask">
+  <div class="modal" style="max-width:620px">
+    <div class="mh"><span>配置中心</span><button class="x" data-close>✕</button></div>
+    <div class="mb">
+      <div class="etabs">
+        <div class="tab active" data-dt="import">导入书签</div>
+        <div class="tab" data-dt="export">导出 / 备份</div>
+        <div class="tab" data-dt="shortcuts">快捷键</div>
+        <div class="tab" data-dt="sync">数据源</div>
+      </div>
+      <div id="dtImport">
+        <div class="drop" id="dropZone">点击选择文件 或 将文件拖到这里<br><span style="font-size:11.5px">支持：本应用备份 JSON · Firefox 书签 JSON · 浏览器导出 HTML（Netscape 格式）</span></div>
+        <input type="file" id="fileInput" accept=".json,.html,.htm" style="display:none">
+        <div class="radio-row">
+          <label><input type="radio" name="dupPolicy" value="skip" checked>跳过重复（同网址已存在则不导入）</label>
+        </div>
+        <div class="radio-row" style="margin-top:2px">
+          <label><input type="radio" name="dupPolicy" value="keep">全部导入（保留重复）</label>
+        </div>
+        <div class="note">导入 Firefox JSON / HTML 时，原有文件夹结构会保留；同名文件夹会合并。</div>
+        <div class="result" id="importResult"></div>
+      </div>
+      <div id="dtExport" style="display:none">
+        <div class="fld"><label>① 完整备份（本应用 JSON，含置顶/常用计数，用于恢复）</label>
+          <button class="btn" style="width:100%;height:42px" id="expJson">⬇ 导出备份 JSON</button>
+        </div>
+        <div class="fld"><label>② 浏览器书签 HTML（Netscape 格式，可导回 Firefox / Chrome / Edge）</label>
+          <button class="btn" style="width:100%;height:42px" id="expHtml">⬇ 导出浏览器书签 HTML</button>
+        </div>
+        <div class="fld"><label>③ 清空为空白系统（删除全部书签与文件夹，恢复需用「恢复初始数据」）</label>
+        <button class="btn" style="width:100%;height:42px;color:var(--danger);border-color:rgba(255,107,107,.4)" id="btnClearAll">🗑 清空全部书签</button>
+      </div>
+      <div class="fld" id="fdResetWrap" style="display:none"><label>④ 恢复初始数据（清空当前数据，恢复为初始导入的书签）</label>
+          <button class="btn" style="width:100%;height:42px;color:var(--danger);border-color:rgba(255,107,107,.4)" id="btnReset">↺ 恢复初始数据</button>
+        </div>
+        <div class="note">当前共 <b id="dtCount">-</b> 个书签 · <b id="dtFolders">-</b> 个文件夹</div>
+      </div>
+      <div id="dtShortcuts" style="display:none">
+        <div class="note" style="line-height:1.85">
+          自定义本管理器内的快捷键，仅在管理器（侧边栏 / 新标签页 / 独立窗口）获得焦点时生效。<br>
+          点击输入框后按下想要的组合键即可录制；按 <b>Esc</b> 取消录制，按 <b>Backspace</b> 清空。<br>
+          <span style="color:var(--accent2)">提示</span>：浏览器级的全局快捷键（无需焦点也可触发）请在浏览器扩展管理页 → 键盘快捷键中设置，本表显示的是默认值。
+        </div>
+        <div class="fld">
+          <label>① 切换侧边栏显示 / 关闭（替代单击扩展图标）</label>
+          <div style="display:flex;gap:8px;align-items:center">
+            <input type="text" id="hkToggle" readonly placeholder="点击录制…" style="flex:1;height:42px;font-family:monospace;font-size:13px;text-align:center;cursor:pointer">
+            <button class="btn" id="hkToggleReset" style="height:42px">恢复默认</button>
+          </div>
+          <div class="hint">默认：<b>1</b>（仅数字键）· 全局默认：<b id="hkToggleGlobal">Alt+1</b></div>
+        </div>
+        <div class="fld">
+          <label>② 从新标签页中打开本管理器</label>
+          <div style="display:flex;gap:8px;align-items:center">
+            <input type="text" id="hkOpenTab" readonly placeholder="点击录制…" style="flex:1;height:42px;font-family:monospace;font-size:13px;text-align:center;cursor:pointer">
+            <button class="btn" id="hkOpenTabReset" style="height:42px">恢复默认</button>
+          </div>
+          <div class="hint">默认：<b>2</b>（仅数字键）· 全局默认：<b id="hkOpenTabGlobal">Alt+2</b></div>
+        </div>
+        <div class="fld">
+          <label>③ 聚焦搜索框</label>
+          <div style="display:flex;gap:8px;align-items:center">
+            <input type="text" id="hkSearch" readonly placeholder="点击录制…" style="flex:1;height:42px;font-family:monospace;font-size:13px;text-align:center;cursor:pointer">
+            <button class="btn" id="hkSearchReset" style="height:42px">恢复默认</button>
+          </div>
+          <div class="hint">默认：<b>/</b> 或 <b>Ctrl+K</b></div>
+        </div>
+        <div class="result" id="hkResult"></div>
+      </div>
+      <div id="dtSync" style="display:none">
+        <div class="note" style="line-height:1.85">
+          选择书签数据源。<br>
+          <b>独立模式</b>：本扩展使用自己的本地存储，与浏览器书签完全隔离，新装即为空白，便于从零开始整理自己的收藏。<br>
+          <b>同步模式</b>：直接读写浏览器书签，与浏览器书签栏实时互通（新增 / 删除会同步到浏览器）。
+        </div>
+        <div class="radio-row" style="flex-direction:column;align-items:flex-start;gap:10px;margin-top:6px">
+          <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer">
+            <input type="radio" name="syncMode" value="standalone" style="margin-top:3px">
+            <span><b>独立模式</b>（推荐新装使用）· 数据保存在扩展本地存储，不读取 / 不修改浏览器书签。<br><span style="color:var(--muted);font-size:12px">新装默认即此模式，可随时切换；切换不会丢失已存数据。</span></span>
+          </label>
+          <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer">
+            <input type="radio" name="syncMode" value="sync" style="margin-top:3px">
+            <span><b>同步模式</b>（实时读写浏览器书签）· 与浏览器书签栏完全同步。<br><span style="color:var(--muted);font-size:12px">在浏览器书签里的改动会自动反映到这里；这里删除书签会真的从浏览器删除。</span></span>
+          </label>
+        </div>
+        <div class="fld" id="importBrowserWrap" style="margin-top:12px">
+          <label>把当前浏览器书签一次性导入到独立模式</label>
+          <button class="btn" style="width:100%;height:42px" id="btnImportBrowser">📥 从浏览器书签导入（覆盖独立数据）</button>
+          <div class="hint">仅在独立模式下可用。会先清空独立数据，再把浏览器书签栏的全部内容复制进来。</div>
+        </div>
+        <div class="result" id="syncResult"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toasts"></div>
+
+<!-- 动态右键菜单 -->
+<div class="ctxmenu" id="ctxMenu"></div>
+
+<!-- 捐助 弹窗 -->
+<div class="mask" id="donMask">
+  <div class="modal" style="max-width:520px">
+    <div class="mh"><span>❤ 支持一下</span><button class="x" data-close>✕</button></div>
+    <div class="mb" style="text-align:center">
+      <div class="note" style="text-align:center;padding:2px 0 6px">如果「悟道书签管理器」帮到了你，欢迎请作者喝杯咖啡 ☕<br><span style="font-size:11px;opacity:.85">点击图片可放大扫码，感谢支持</span></div>
+      <div class="donate-grid">
+        <div class="donate-card">
+          <img id="donWechatImg" alt="微信收款码" title="点击放大">
+          <div class="dl">微信</div>
+        </div>
+        <div class="donate-card">
+          <img id="donAlipayImg" alt="支付宝收款码" title="点击放大">
+          <div class="dl">支付宝</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 收款码放大预览 -->
+<div class="mask" id="imgMask">
+  <div class="lightbox">
+    <img id="lbImg" alt="收款码放大预览">
+    <div class="lb-tip">点击空白处关闭 · 可长按图片或右键另存，方便扫码</div>
+  </div>
+</div>
+
+<!-- 搜索引擎管理 弹窗 -->
+<div class="mask" id="engMask">
+  <div class="modal" style="max-width:600px">
+    <div class="mh"><span>搜索引擎管理</span><button class="x" data-close>✕</button></div>
+    <div class="mb">
+      <div class="note">拖动 ⋮⋮ 或点 ↑↓ 调整顺序 · 网址中用 <b>{q}</b> 代表搜索词 · 至少保留 1 个引擎 · 保存后立即生效</div>
+      <div id="engList"></div>
+    </div>
+    <div class="mf">
+      <button class="btn" data-close>关闭</button>
+      <button class="btn primary" id="engAdd" style="flex:1">＋ 添加搜索引擎</button>
+    </div>
+  </div>
+</div>
+
+<script src="manager.js"></script>
+</body>
+</html>

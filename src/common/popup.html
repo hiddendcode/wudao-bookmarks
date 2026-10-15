@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<style>
+  body{margin:0;background:#0d1220;font-family:system-ui,"Microsoft YaHei",sans-serif;overflow:hidden}
+  .bar{display:flex;align-items:center;gap:8px;padding:9px 12px;border-bottom:1px solid #242e4c;background:#0d1220}
+  .t{color:#e8ecf6;font-size:13px;font-weight:600;flex:1;display:flex;align-items:center;gap:7px}
+  .dot{width:8px;height:8px;border-radius:50%;background:#4cd97b;box-shadow:0 0 6px #4cd97b}
+  button{background:linear-gradient(135deg,#5b8cff,#7aa5ff);color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;font-family:inherit}
+  button:hover{filter:brightness(1.1)}
+  iframe{width:716px;height:524px;border:0;display:block}
+</style>
+</head>
+<body>
+<div class="bar">
+  <div class="t"><span class="dot"></span>悟道书签管理器 · 已连接浏览器书签（实时同步）</div>
+  <button id="openTab">⛶ 新标签页打开</button>
+</div>
+<iframe src="manager.html"></iframe>
+<script src="popup.js"></script>
+</body>
+</html>
