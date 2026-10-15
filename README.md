@@ -46,10 +46,7 @@
 
 # 捐助
 如果「悟道书签管理器」帮到了你，欢迎请作者喝杯咖啡 ☕
-<img width="880" height="1200" alt="微信付款码" src="https://github.com/user-attachments/assets/a81adee3-25d9-4b10-853e-a042d2d3d1cb" />
 
-<img width="880" height="1319" alt="支付宝付款码" src="https://github.com/user-attachments/assets/de3d23fc-0277-4d51-9a71-664cbdcfcb72" />
-
-
-
-可调大小侧边栏书签管理器：分类导航、双搜索栏、拖拽整理、去重、导入导出、快捷键自定义、独立空白模式。
+| 微信支付 | 支付宝 |
+| :---: | :---: |
+| <img width="220" src="https://github.com/user-attachments/assets/a81adee3-25d9-4b10-853e-a042d2d3d1cb" alt="微信付款码" /> | <img width="220" src="https://github.com/user-attachments/assets/de3d23fc-0277-4d51-9a71-664cbdcfcb72" alt="支付宝付款码" /> |
