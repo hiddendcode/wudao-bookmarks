@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "default_locale": "zh_CN",
   "name": "__MSG_extName__",
-  "version": "1.4.9",
+  "version": "1.6.5",
   "description": "__MSG_extDescription__",
   "author": "wudao",
   "browser_specific_settings": {
@@ -28,15 +28,6 @@
   "sidebar_action": {
     "default_panel": "manager.html",
     "default_title": "__MSG_extName__",
-    "default_icon": {
-      "16": "icons/icon16.png",
-      "32": "icons/icon32.png",
-      "48": "icons/icon48.png",
-      "128": "icons/icon128.png"
-    }
-  },
-  "action": {
-    "default_title": "__MSG_extActionTitle__",
     "default_icon": {
       "16": "icons/icon16.png",
       "32": "icons/icon32.png",
@@ -73,5 +64,14 @@
   ],
   "optional_host_permissions": [
     "file:///*"
-  ]
+  ],
+  "action": {
+    "default_title": "__MSG_extActionTitle__",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  }
 }

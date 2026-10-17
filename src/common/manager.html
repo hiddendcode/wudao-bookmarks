@@ -10,7 +10,7 @@
   --text:#e8ecf6; --muted:#8b94ad; --accent:#5b8cff; --accent2:#7aa5ff; --accent-soft:rgba(91,140,255,.14);
   --danger:#ff6b6b; --ok:#4cd97b; --warn:#ffb454; --pin:#ffcf5c;
   --border:#242e4c; --shadow:0 8px 28px rgba(0,0,0,.42);
-  --radius:12px; --header-h:64px;
+  --radius:12px; --header-h:114px;
 }
 :root[data-theme="light"]{
   --bg:#f2f4fa; --bg2:#e9edf6; --card:#ffffff; --card-hover:#f4f7ff; --card-border:#e0e6f3;
@@ -31,20 +31,24 @@ button{font-family:inherit}
 a{color:inherit}
 ::selection{background:var(--accent-soft)}
 
-/* ===== 顶栏 ===== */
+/* ===== 顶栏（1.6.4 改两行：上=品牌+按钮，下=搜索区）===== */
 header{
-  position:sticky; top:0; z-index:50; display:flex; align-items:center; gap:14px;
-  padding:0 22px; height:var(--header-h); background:color-mix(in srgb, var(--bg) 88%, transparent);
+  position:sticky; top:0; z-index:50; display:flex; flex-direction:column; gap:8px;
+  padding:8px 22px 10px; height:var(--header-h); background:color-mix(in srgb, var(--bg) 88%, transparent);
   backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
   border-bottom:1px solid var(--border);
 }
+.hrow-top{display:flex; align-items:center; gap:14px; height:46px; flex:0 0 auto}
+.hrow-top .hbtns{margin-left:auto}
+.hrow-search{display:flex; align-items:center; gap:10px; flex:0 0 auto}
 .brand{display:flex; align-items:center; gap:10px; cursor:pointer; user-select:none; flex:0 0 auto}
 .brand svg.logo{
   border-radius:10px; box-shadow:0 4px 14px rgba(91,140,255,.35); flex:0 0 auto; display:block;
 }
 .brand b{font-size:16px;letter-spacing:.5px}
 .brand .stat{font-size:11px;color:var(--muted);margin-top:2px;font-weight:400}
-.searchwrap{position:relative; flex:2.4 1 360px; min-width:280px; max-width:860px}
+/* 搜索区：书签搜索 2/3，网页搜索 1/3 */
+.searchwrap{position:relative; flex:2 1 0; min-width:200px; max-width:none}
 .searchwrap input{
   width:100%; height:42px; border-radius:11px; border:1px solid var(--border);
   background:var(--card); color:var(--text); font-size:14px; padding:0 14px 0 40px; outline:none;
@@ -52,10 +56,11 @@ header{
 }
 .searchwrap input:focus{border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft)}
 .searchwrap .sicon{position:absolute; left:13px; top:50%; transform:translateY(-50%); opacity:.55; font-size:14px; pointer-events:none}
-.engwrap{display:flex; gap:6px; flex:0.6 1 180px; min-width:160px; max-width:260px; align-items:center}
+.engwrap{display:flex; gap:8px; flex:1 1 0; min-width:230px; max-width:none; align-items:center}
+/* 引擎选择器：宽度由 JS 按选中引擎名自适应（不再被最长选项 DuckDuckGo 撑宽） */
 .engwrap select{
   height:42px; border-radius:11px; border:1px solid var(--border); background:var(--card); color:var(--text);
-  font-size:12.5px; padding:0 6px; outline:none; cursor:pointer; max-width:84px; font-family:inherit; flex:0 0 auto;
+  font-size:12.5px; padding:0 4px; outline:none; cursor:pointer; width:auto; max-width:140px; font-family:inherit; flex:0 0 auto;
 }
 .engwrap select:focus{border-color:var(--accent)}
 .engwrap input{
@@ -425,62 +430,65 @@ header [data-tip]:hover::before{bottom:auto; top:calc(100% + 4px)}
 footer{max-width:1440px; margin:0 auto; padding:0 22px 26px; color:var(--muted); font-size:12px; text-align:center; opacity:.8}
 footer .tips{margin-top:4px}
 
-/* 中等宽度：顶栏按钮先收成纯图标，尽量保住单行（顶栏内容最小宽约 1220px） */
+/* 中等宽度：顶栏按钮先收成纯图标 */
 @media (max-width:1240px){
   .hbtn span{display:none}
   .hbtn{padding:0 10px}
 }
-/* 窄窗口（侧边栏 / 被拖小的独立窗口）：顶栏换行，杜绝横向滚动条 */
-@media (max-width:1060px){
-  header{flex-wrap:wrap; height:auto; padding:10px 12px; row-gap:8px}
-  .searchwrap{order:3; flex-basis:100%; max-width:none}
-  .engwrap{order:4; flex-basis:100%; max-width:none}
-  .hbtns{order:2; margin-left:auto}
-  .hbtn{height:38px}
-}
+/* 窄窗口（侧边栏 / 被拖小的独立窗口）：搜索区折成两行，杜绝横向滚动条 */
 @media (max-width:760px){
+  header{height:auto; padding:10px 12px}
   .brand .stat{display:none}
   main, nav{padding-left:12px; padding-right:12px}
   .navwrap{top:auto; position:static}
+  .hrow-search{flex-wrap:wrap}
+  .searchwrap{flex:1 1 100%; min-width:0}
+  .engwrap{flex:1 1 100%; min-width:0}
   .searchwrap input{height:38px}
+  .hbtn{height:38px}
   .nav-grip .nav-fold-txt{display:none}
 }
 </style>
 </head>
 <body>
 <header>
-  <div class="brand" id="brandHome" data-tip="回到首页">
-    <svg class="logo" viewBox="0 0 48 48" width="36" height="36" aria-label="悟道书签">
-      <defs><linearGradient id="wdlg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5b8cff"/><stop offset="1" stop-color="#8f6bff"/></linearGradient></defs>
-      <path d="M13 3 h22 c2.8 0 5 2.2 5 5 v31 c0 3.3 -3.9 5 -6.4 2.9 L24 34.2 14.4 41.9 C11.9 43.9 8 42.2 8 39 V8 c0-2.8 2.2-5 5-5 z" fill="url(#wdlg)"/>
-      <path d="M13.5 5.6 h21 c1.6 0 2.9 1.3 2.9 2.9 v27.7 l-11.7-7.9 q-1.2-.8-2.4 0 L11.6 36.2 V8.5 c0-1.6 1.3-2.9 2.9-2.9 z" fill="none" stroke="rgba(255,255,255,.55)" stroke-width="1.5"/>
-      <text x="24" y="19.8" text-anchor="middle" font-size="12.5" font-weight="700" fill="#ffffff" font-family="'PingFang SC','Microsoft YaHei',sans-serif">悟</text>
-      <text x="24" y="32.2" text-anchor="middle" font-size="12.5" font-weight="700" fill="#ffffff" font-family="'PingFang SC','Microsoft YaHei',sans-serif">道</text>
-    </svg>
-    <div>
-      <b>悟道书签管理器</b>
-      <div class="stat" id="statLine">加载中…</div>
+  <div class="hrow-top">
+    <div class="brand" id="brandHome" data-tip="回到首页">
+      <svg class="logo" viewBox="0 0 48 48" width="36" height="36" aria-label="悟道书签">
+        <defs><linearGradient id="wdlg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5b8cff"/><stop offset="1" stop-color="#8f6bff"/></linearGradient></defs>
+        <path d="M13 3 h22 c2.8 0 5 2.2 5 5 v31 c0 3.3 -3.9 5 -6.4 2.9 L24 34.2 14.4 41.9 C11.9 43.9 8 42.2 8 39 V8 c0-2.8 2.2-5 5-5 z" fill="url(#wdlg)"/>
+        <path d="M13.5 5.6 h21 c1.6 0 2.9 1.3 2.9 2.9 v27.7 l-11.7-7.9 q-1.2-.8-2.4 0 L11.6 36.2 V8.5 c0-1.6 1.3-2.9 2.9-2.9 z" fill="none" stroke="rgba(255,255,255,.55)" stroke-width="1.5"/>
+        <text x="24" y="19.8" text-anchor="middle" font-size="12.5" font-weight="700" fill="#ffffff" font-family="'PingFang SC','Microsoft YaHei',sans-serif">悟</text>
+        <text x="24" y="32.2" text-anchor="middle" font-size="12.5" font-weight="700" fill="#ffffff" font-family="'PingFang SC','Microsoft YaHei',sans-serif">道</text>
+      </svg>
+      <div>
+        <b>悟道书签管理器</b>
+        <div class="stat" id="statLine">加载中…</div>
+      </div>
+    </div>
+    <div class="hbtns">
+      <button class="hbtn" id="btnOpenTab" data-tip="在浏览器新标签页中打开本管理器" style="display:none">⛶ <span>新标签页</span></button>
+      <button class="hbtn donate" id="btnDonate" data-tip="支持一下，请喝杯咖啡 ☕">❤ <span>捐助</span></button>
+      <button class="hbtn" id="btnData" data-tip="导入 / 导出 / 备份 / 重置 / 快捷键">⚙ <span>配置</span></button>
+      <button class="hbtn" id="btnDensity" data-tip="点击切换布局密度">▥ <span>宽松</span></button>
+      <button class="hbtn primary" id="btnAdd" data-tip="添加书签">➕ <span>添加书签</span></button>
+      <button class="hbtn" id="btnManage" data-tip="管理模式：拖拽排序、跨文件夹移动">🛠 <span>管理</span></button>
+      <button class="hbtn" id="btnTheme" data-tip="切换深浅主题">🌙</button>
+      <button class="hbtn" id="btnLang" data-tip="Switch language / 切换语言" style="min-width:42px;font-weight:700">EN</button>
     </div>
   </div>
-  <div class="searchwrap">
-    <span class="sicon">🔖</span>
-    <input type="text" id="searchInput" placeholder="搜索书签：名称 / 网址 / 描述 / 分类标签…（按 / 聚焦）" autocomplete="off" spellcheck="false">
-    <div class="suggest" id="suggestBox"></div>
-  </div>
-  <div class="engwrap">
-    <select id="engineSelect" aria-label="选择搜索引擎"></select>
-    <button class="hbtn eg-mgr" id="btnEngMgr" data-tip="添加 / 编辑 / 排序搜索引擎">✎</button>
-    <input type="text" id="engineInput" placeholder="搜网页…" autocomplete="off" spellcheck="false">
-    <button class="hbtn go" id="engineGo" data-tip="搜索">➤</button>
-  </div>
-  <div class="hbtns">
-    <button class="hbtn" id="btnOpenTab" data-tip="在浏览器新标签页中打开本管理器" style="display:none">⛶ <span>新标签页</span></button>
-    <button class="hbtn donate" id="btnDonate" data-tip="支持一下，请喝杯咖啡 ☕">❤ <span>捐助</span></button>
-    <button class="hbtn" id="btnData" data-tip="导入 / 导出 / 备份 / 重置 / 快捷键">⚙ <span>配置</span></button>
-    <button class="hbtn" id="btnDensity" data-tip="点击切换布局密度">▥ <span>宽松</span></button>
-    <button class="hbtn primary" id="btnAdd" data-tip="添加书签">➕ <span>添加书签</span></button>
-    <button class="hbtn" id="btnManage" data-tip="管理模式：拖拽排序、跨文件夹移动">🛠 <span>管理</span></button>
-    <button class="hbtn" id="btnTheme" data-tip="切换深浅主题">🌙</button>
+  <div class="hrow-search">
+    <div class="searchwrap">
+      <span class="sicon">🔖</span>
+      <input type="text" id="searchInput" placeholder="搜索书签：名称 / 网址 / 描述 / 分类标签…（按 / 聚焦）" autocomplete="off" spellcheck="false">
+      <div class="suggest" id="suggestBox"></div>
+    </div>
+    <div class="engwrap">
+      <select id="engineSelect" aria-label="选择搜索引擎"></select>
+      <button class="hbtn eg-mgr" id="btnEngMgr" data-tip="添加 / 编辑 / 排序搜索引擎">✎</button>
+      <input type="text" id="engineInput" placeholder="搜网页…" autocomplete="off" spellcheck="false">
+      <button class="hbtn go" id="engineGo" data-tip="搜索">➤</button>
+    </div>
   </div>
 </header>
 
@@ -558,6 +566,7 @@ footer .tips{margin-top:4px}
         <div class="tab" data-dt="export">导出 / 备份</div>
         <div class="tab" data-dt="shortcuts">快捷键</div>
         <div class="tab" data-dt="sync">数据源</div>
+        <div class="tab" data-dt="lang">语言</div>
       </div>
       <div id="dtImport">
         <div class="drop" id="dropZone">点击选择文件 或 将文件拖到这里<br><span style="font-size:11.5px">支持：本应用备份 JSON · Firefox 书签 JSON · 浏览器导出 HTML（Netscape 格式）</span></div>
@@ -588,9 +597,28 @@ footer .tips{margin-top:4px}
       </div>
       <div id="dtShortcuts" style="display:none">
         <div class="note" style="line-height:1.85">
-          自定义本管理器内的快捷键，仅在管理器（侧边栏 / 新标签页 / 独立窗口）获得焦点时生效。<br>
-          点击输入框后按下想要的组合键即可录制；按 <b>Esc</b> 取消录制，按 <b>Backspace</b> 清空。<br>
-          <span style="color:var(--accent2)">提示</span>：浏览器级的全局快捷键（无需焦点也可触发）请在浏览器扩展管理页 → 键盘快捷键中设置，本表显示的是默认值。
+          <b>🌐 全局快捷键</b>：在任意网页按下都生效，下方直接设置。<br>
+          <b>⌨ 页内快捷键</b>：仅在管理器（侧边栏 / 新标签页 / 独立窗口）获得焦点时生效，见下方 ①②③。<br>
+          点击输入框后按下想要的组合键即可录制；按 <b>Esc</b> 取消，按 <b>Backspace</b> 清空。
+        </div>
+        <div class="fld" style="border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:14px">
+          <label style="font-weight:700">🌐 全局快捷键（任意网页生效）</label>
+          <div class="fld" style="margin-top:4px">
+            <label>· 切换侧边栏显示 / 关闭</label>
+            <div style="display:flex;gap:8px;align-items:center">
+              <input type="text" id="ghkToggle" readonly placeholder="读取中…" style="flex:1;height:42px;font-family:monospace;font-size:13px;text-align:center;cursor:pointer">
+              <button class="btn" id="ghkToggleClear" style="height:42px">清除</button>
+            </div>
+          </div>
+          <div class="fld">
+            <label>· 从新标签页打开本管理器</label>
+            <div style="display:flex;gap:8px;align-items:center">
+              <input type="text" id="ghkOpenTab" readonly placeholder="读取中…" style="flex:1;height:42px;font-family:monospace;font-size:13px;text-align:center;cursor:pointer">
+              <button class="btn" id="ghkOpenTabClear" style="height:42px">清除</button>
+            </div>
+          </div>
+          <button class="btn" id="btnGlobalHk" style="width:100%;height:42px">⌨ 打开浏览器快捷键设置页</button>
+          <div class="hint" id="ghkNote" style="margin-top:8px;line-height:1.7"></div>
         </div>
         <div class="fld">
           <label>① 切换侧边栏显示 / 关闭（替代单击扩展图标）</label>
@@ -598,7 +626,7 @@ footer .tips{margin-top:4px}
             <input type="text" id="hkToggle" readonly placeholder="点击录制…" style="flex:1;height:42px;font-family:monospace;font-size:13px;text-align:center;cursor:pointer">
             <button class="btn" id="hkToggleReset" style="height:42px">恢复默认</button>
           </div>
-          <div class="hint">默认：<b>1</b>（仅数字键）· 全局默认：<b id="hkToggleGlobal">Alt+1</b></div>
+          <div class="hint">默认：<b>1</b>（仅数字键，需在管理器页面内按）</div>
         </div>
         <div class="fld">
           <label>② 从新标签页中打开本管理器</label>
@@ -606,7 +634,7 @@ footer .tips{margin-top:4px}
             <input type="text" id="hkOpenTab" readonly placeholder="点击录制…" style="flex:1;height:42px;font-family:monospace;font-size:13px;text-align:center;cursor:pointer">
             <button class="btn" id="hkOpenTabReset" style="height:42px">恢复默认</button>
           </div>
-          <div class="hint">默认：<b>2</b>（仅数字键）· 全局默认：<b id="hkOpenTabGlobal">Alt+2</b></div>
+          <div class="hint">默认：<b>2</b>（仅数字键，需在管理器页面内按）</div>
         </div>
         <div class="fld">
           <label>③ 聚焦搜索框</label>
@@ -640,7 +668,18 @@ footer .tips{margin-top:4px}
           <div class="hint">仅在独立模式下可用。会先清空独立数据，再把浏览器书签栏的全部内容复制进来。</div>
         </div>
         <div class="result" id="syncResult"></div>
+      
+      <div id="dtLang" style="display:none">
+        <div class="note" style="margin-bottom:12px">选择界面显示语言 / Choose interface language</div>
+        <div class="radio-row">
+          <label><input type="radio" name="langChoice" value="zh" checked> 中文</label>
+        </div>
+        <div class="radio-row" style="margin-top:4px">
+          <label><input type="radio" name="langChoice" value="en"> English</label>
+        </div>
+        <div class="result" id="langResult"></div>
       </div>
+</div>
     </div>
   </div>
 </div>

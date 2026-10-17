@@ -263,6 +263,22 @@ const isJsUrl = u => /^javascript:/i.test(u || "");
  * 没授权时浏览器都是**静默拦截** —— 不报错、不弹窗，表现就是"点了没反应"。
  * 所以先查权限，没权限就明确告诉用户去哪儿点，而不是让点击石沉大海。 */
 const isFileUrl = u => /^file:/i.test(u || "");
+/* about: 特权页面（about:debugging / about:config 等）：Firefox 与 Chrome 都禁止
+ * 扩展通过任何 API 打开，唯一出路是让用户自己粘贴到地址栏 —— 与脚本书签同款处理。 */
+const isAboutUrl = u => /^about:/i.test(u || "");
+/* 受限协议的统一兜底：复制到剪贴板 + 明确告诉用户下一步怎么做 */
+function copyUrlWithTip(url, msg) {
+  const tip = msg || "地址已复制，粘贴到浏览器地址栏即可访问";
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url).then(
+        () => toast(tip, "ok"),
+        () => toast("复制失败，请手动复制该地址到地址栏打开", "warn"));
+    } else {
+      toast("请手动复制该地址到地址栏打开：" + url, "warn");
+    }
+  } catch (e) { toast("请手动复制该地址到地址栏打开：" + url, "warn"); }
+}
 
 let _fileAccess = null;   // 缓存，避免每次点击都问一遍
 const FILE_TIP_CHROMIUM = "本地文件链接需要先授权：打开 chrome://extensions → 找到本扩展 → 点「详细信息」→ 拉到页面最底部 → 打开「允许访问文件网址」，然后再点一次";
@@ -275,21 +291,18 @@ function isGeckoRuntime() {
 function fileAccessTip() { return isGeckoRuntime() ? FILE_TIP_GECKO : FILE_TIP_CHROMIUM; }
 
 function checkFileAccess(cb) {
-  if (_fileAccess !== null) { cb(_fileAccess); return; }
+  /* 每次重新检查，不缓存 —— 用户可能刚在 about:addons 里开了权限 */
+  _fileAccess = null;
   let done = false;
   const finish = v => { if (done) return; done = true; _fileAccess = !!v; cb(_fileAccess); };
 
-  /* ---- Firefox：查可选权限 file:///* ---- */
-  if (isGeckoRuntime()) {
-    try {
-      if (browser.permissions && typeof browser.permissions.contains === "function") {
-        const p = browser.permissions.contains({ origins: ["file:///*"] });
-        if (p && typeof p.then === "function") { p.then(finish).catch(() => finish(true)); return; }
-      }
-    } catch (e) { /* 落到放行 */ }
-    finish(true);   // 拿不到这个 API 就别挡用户的路
-    return;
-  }
+  /* ---- Firefox：不预检权限，直接放行 ----
+   * 1.6.2 修复：Firefox 对 file:///* 可选权限的 contains 查询不可靠
+   * （用户在 about:addons 开了权限，查询仍可能返回 false），
+   * 1.6.1 因此永远提示"未授权"。而打开 file:// 标签页其实不需要 host 权限，
+   * 真正的成败由 background 的 open-file-url 实际尝试决定，
+   * 失败时它会返回 no-permission / open-failed，再给出对应提示。 */
+  if (isGeckoRuntime()) { finish(true); return; }
 
   /* ---- Chrome / Edge：extension.isAllowedFileSchemeAccess ---- */
   let ext = null;
@@ -304,8 +317,28 @@ function checkFileAccess(cb) {
   } catch (e) { finish(true); }
 }
 
-/* 打开任意 URL：优先 tabs.create（扩展环境最稳），失败再退回 window.open */
+/* 打开任意 URL：file:// 在 Firefox 中需要走 background script，其他直接打开 */
 function openUrlAnywhere(url) {
+  /* Firefox 的 file:// URL：sidebar 上下文打不开，必须委托给 background script */
+  if (/^file:/i.test(url) && isGeckoRuntime()) {
+    try {
+      if (browser.runtime && browser.runtime.sendMessage) {
+        const p = browser.runtime.sendMessage({ type: "open-file-url", url: url });
+        if (p && typeof p.then === "function") {
+          p.then(res => {
+            if (res && res.ok) return;
+            if (res && res.err === "no-permission") { toast(fileAccessTip(), "warn"); return; }
+            /* 平台禁令兜底（Firefox tabs.create 不支持 file:）：复制链接引导粘贴 */
+            copyUrlWithTip(url, "浏览器限制插件直接打开本地文件：链接已复制，粘贴到地址栏即可访问");
+          }).catch(() => {
+            copyUrlWithTip(url, "浏览器限制插件直接打开本地文件：链接已复制，粘贴到地址栏即可访问");
+          });
+          return;
+        }
+      }
+    } catch (e) { /* 落到普通方式 */ }
+  }
+  /* 非 file:// 或 Chrome：直接打开 */
   let api = null;
   try {
     api = (typeof browser !== "undefined" && browser.runtime) ? browser
@@ -315,12 +348,12 @@ function openUrlAnywhere(url) {
     if (api && api.tabs && api.tabs.create) {
       const r = api.tabs.create({ url: url });
       if (r && r.catch) r.catch(() => {
-        if (!window.open(url, "_blank", "noopener")) toast("打不开这个本地文件链接，可能是浏览器限制了 file:// 访问", "warn");
+        if (!window.open(url, "_blank", "noopener")) toast("打不开链接", "warn");
       });
       return;
     }
   } catch (e) { /* 落到 window.open */ }
-  try { if (!window.open(url, "_blank", "noopener")) toast("打不开这个本地文件链接，可能是浏览器限制了 file:// 访问", "warn"); } catch (e) {}
+  try { if (!window.open(url, "_blank", "noopener")) toast("打不开链接", "warn"); } catch (e) {}
 }
 
 /* file:// 链接的统一入口 */
@@ -383,7 +416,7 @@ async function saveStandalone() {
 let DB = null;
 let state = { view: "home", folder: null, q: "", locatingId: null };
 let expandedSec = new Set();
-let pref = { theme: "dark", dense: false, manage: false, navFold: false, navH: 0,
+let pref = { theme: "dark", dense: false, manage: false, navFold: false, navH: 0, lang: "zh",
   /* 数据源模式：standalone=独立本地存储(新装默认)，sync=实时读写浏览器书签 */
   syncMode: "standalone",
   /* 自定义页面内快捷键：默认 1=切换侧栏, 2=新标签页打开, /=聚焦搜索。
@@ -392,6 +425,122 @@ let pref = { theme: "dark", dense: false, manage: false, navFold: false, navH: 0
   hkOpenTab: "2",
   hkSearch: "/"
 };
+
+/* ---------- i18n 多语言 ---------- */
+const I18N = {
+  zh: {
+    searchBookmarks: "搜索书签：名称 / 网址",
+    searchWeb: "搜网页",
+    newTab: "新标签页",
+    donate: "捐助",
+    settings: "配置",
+    density: "宽松",
+    densityOn: "紧凑",
+    addBookmark: "添加书签",
+    manage: "管理",
+    home: "主页",
+    frequent: "常用",
+    bookmarkMenu: "书签菜单",
+    bookmarkToolbar: "书签工具栏",
+    uncategorized: "未分类书签",
+    mobileBookmarks: "移动书签",
+    moveBookmarks: "移动书签",
+    dedup: "重复清理",
+    addFolder: "文件夹",
+    expand: "展开",
+    frequentTop: "常用 / 置顶",
+    hoverRemove: "(hover 可  移除，不删书签)",
+    addBookmarkBtn: "＋ 书签",
+    computerFiles: "电脑文件",
+    localTools: "本地渗透工具",
+    enter: "进入 →",
+    configManage: " 管理",
+    addSubfolder: "＋ 子夹",
+    configCenter: "配置中心",
+    importBookmarks: "导入书签",
+    exportBackup: "导出 / 备份",
+    shortcuts: "快捷键",
+    dataSource: "数据源",
+    customShortcutsDesc: "自定义本管理器内的快捷键，仅在管理器（侧边栏 / 新标签页 / 独立窗口）获得焦点时生效。",
+    recordHint: "点击输入框后按下想要的组合键即可录制；按 Esc 取消录制，按 Backspace 清空。",
+    globalHint: "提示：浏览器级的全局快捷键（无需焦点也可触发）请在浏览器扩展管理页 → 键盘快捷键中设置，本表显示的是默认值。",
+    toggleSidebar: "① 切换侧边栏显示 / 关闭（替代单击扩展图标）",
+    openInNewTab: "② 从新标签页中打开本管理器",
+    focusSearch: "③ 聚焦搜索框",
+    restoreDefault: "恢复默认",
+    standaloneMode: "独立模式（数据存在本机，不上传）",
+    syncMode: "同步模式（实时读写浏览器书签）",
+    importFromBrowser: "从浏览器书签导入",
+    close: "关闭",
+    lang: "语言",
+    langZh: "中文",
+    langEn: "English",
+    addFolderBtn: "＋ 文件夹",
+    toolbarBookmarks: "工具栏书签",
+    emptyBookmarks: "还没有任何书签，点击右上角 ➕ 添加",
+    emptyFolder: "此文件夹暂无书签",
+    showAll: "▼ 显示全部",
+    collapse: "▲ 收起",
+    totalItems: "个",
+  },
+  en: {
+    searchBookmarks: "Search bookmarks: name / URL",
+    searchWeb: "Search web",
+    newTab: "New tab",
+    donate: "Donate",
+    settings: "Settings",
+    density: "Spacious",
+    densityOn: "Compact",
+    addBookmark: "Add bookmark",
+    manage: "Manage",
+    home: "Home",
+    frequent: "Frequent",
+    bookmarkMenu: "Bookmark Menu",
+    bookmarkToolbar: "Bookmarks Toolbar",
+    uncategorized: "Uncategorized",
+    mobileBookmarks: "Mobile Bookmarks",
+    moveBookmarks: "Move Bookmarks",
+    dedup: "Deduplicate",
+    addFolder: "Folder",
+    expand: "Expand",
+    frequentTop: "Frequent / Pinned",
+    hoverRemove: "(hover to ✕ remove, won't delete bookmark)",
+    addBookmarkBtn: "+ Bookmark",
+    computerFiles: "Local Files",
+    localTools: "Local Tools",
+    enter: "Enter →",
+    configManage: "⚙ Manage",
+    addSubfolder: "+ Subfolder",
+    configCenter: "Settings",
+    importBookmarks: "Import",
+    exportBackup: "Export / Backup",
+    shortcuts: "Shortcuts",
+    dataSource: "Data Source",
+    customShortcutsDesc: "Custom shortcuts only work when the manager (sidebar / new tab / standalone window) has focus.",
+    recordHint: "Click an input then press the desired key combination to record; Esc to cancel, Backspace to clear.",
+    globalHint: "Tip: Browser-level global shortcuts (work without focus) can be set in the browser extension management page → Keyboard shortcuts. This table shows defaults.",
+    toggleSidebar: "① Toggle sidebar show/hide (alternative to clicking extension icon)",
+    openInNewTab: "② Open manager in a new tab",
+    focusSearch: "③ Focus search box",
+    restoreDefault: "Restore default",
+    standaloneMode: "Standalone (data stored locally, never uploaded)",
+    syncMode: "Sync mode (read/write browser bookmarks in real-time)",
+    importFromBrowser: "Import from browser bookmarks",
+    close: "Close",
+    lang: "Language",
+    langZh: "中文",
+    langEn: "English",
+    addFolderBtn: "+ Folder",
+    toolbarBookmarks: "Toolbar Bookmarks",
+    emptyBookmarks: "No bookmarks yet. Click ➕ in the top right to add",
+    emptyFolder: "No bookmarks in this folder",
+    showAll: "▼ Show all",
+    collapse: "▲ Collapse",
+    totalItems: "items",
+  }
+};
+function t(key) { return (I18N[pref.lang] && I18N[pref.lang][key]) || I18N.zh[key] || key; }
+
 let dragItem = null;
 
 async function loadDB() {
@@ -643,12 +792,15 @@ function buildCard(it, inFav) {
     e.preventDefault();
     showCtxMenu(e.clientX, e.clientY, [
       { act: "open", label: "↗ 新标签页打开" },
+      { act: "copy", label: "🔗 复制链接" },
       { sep: true },
       { act: "edit", label: "✏️ 编辑书签" }
     ], { it: it });
   });
 
   a.addEventListener("click", e => {
+    /* about: 特权页（about:debugging 等）：浏览器禁止扩展打开，复制地址引导粘贴 */
+    if (isAboutUrl(it.url)) { e.preventDefault(); copyUrlWithTip(it.url, "浏览器禁止插件直接打开 about: 页面：地址已复制，粘贴到地址栏即可访问"); return; }
     if (!isSafeUrl(it.url) && !isJsUrl(it.url)) { e.preventDefault(); toast("该网址协议不支持直接打开，请点击编辑修改", "warn"); return; }
     if (isJsUrl(it.url)) { e.preventDefault(); navigator.clipboard && navigator.clipboard.writeText(it.url).then(() => toast("脚本书签已复制，可粘贴到浏览器地址栏使用", "ok"), () => toast("复制失败", "bad")); return; }
     if (isFileUrl(it.url)) {
@@ -770,16 +922,16 @@ function renderNav() {
   });
   /* 第一行：功能入口 + 全部一级文件夹 */
   const row1 = document.createElement("div"); row1.className = "nav-row";
-  row1.appendChild(mk("🏠 主页", "home"));
+  row1.appendChild(mk("🏠 " + t("home"), "home"));
   const favN = DB.items.filter(i => i.pin || i.usage).length;
-  row1.appendChild(mk("⭐ 常用", "favorites", favN));
+  row1.appendChild(mk("⭐ " + t("frequent"), "favorites", favN));
   const toolbarN = folderItems(ROOT).length;
-  if (toolbarN) { const tb = mk("📌 工具栏", "toolbar", toolbarN); addChipDrop(tb, { id: ROOT, name: "工具栏" }); row1.appendChild(tb); }
+  if (toolbarN) { const tb = mk("📌 " + t("bookmarkToolbar"), "toolbar", toolbarN); addChipDrop(tb, { id: ROOT, name: t("bookmarkToolbar") }); row1.appendChild(tb); }
   (byDepth[1] || []).forEach(f => row1.appendChild(folderChip(f)));
   const dupN = dupGroups().length;
-  row1.appendChild(mk("🧹 重复清理", "duplicates", dupN || null, dupN ? "warn" : ""));
+  row1.appendChild(mk("🧹 " + t("dedup"), "duplicates", dupN || null, dupN ? "warn" : ""));
   const addF = document.createElement("button");
-  addF.className = "chip"; addF.dataset.tip = "新建一级文件夹"; addF.textContent = "＋ 文件夹";
+  addF.className = "chip"; addF.dataset.tip = t("addFolder"); addF.textContent = t("addFolderBtn");
   addF.onclick = () => openFdModal(null, ROOT);
   row1.appendChild(addF);
   nav.appendChild(row1);
@@ -923,20 +1075,20 @@ function sectionHead(emoji, name, count, curId, openable) {
   head.appendChild(h2);
   const ops = document.createElement("div"); ops.className = "to";
   if (openable && curId && curId !== ROOT) {
-    const b = document.createElement("button"); b.className = "mini"; b.textContent = "进入 →";
+    const b = document.createElement("button"); b.className = "mini"; b.textContent = t("enter");
     b.onclick = () => { state.view = "folder"; state.folder = curId; render(); window.scrollTo({ top: 0 }); };
     ops.appendChild(b);
   }
   if (curId && curId !== ROOT) {
-    const b = document.createElement("button"); b.className = "mini"; b.textContent = "⚙ 管理";
+    const b = document.createElement("button"); b.className = "mini"; b.textContent = t("configManage");
     b.onclick = () => openFdModal(curId, null);
     ops.appendChild(b);
   }
-  const bNew = document.createElement("button"); bNew.className = "mini"; bNew.textContent = "＋ 书签";
+  const bNew = document.createElement("button"); bNew.className = "mini"; bNew.textContent = t("addBookmarkBtn");
   bNew.onclick = () => openBmModal(null, curId || ROOT);
   ops.appendChild(bNew);
   if (curId && curId !== ROOT) {
-    const bSub = document.createElement("button"); bSub.className = "mini"; bSub.textContent = "＋ 子夹";
+    const bSub = document.createElement("button"); bSub.className = "mini"; bSub.textContent = t("addSubfolder");
     bSub.onclick = () => openFdModal(null, curId);
     ops.appendChild(bSub);
   }
@@ -996,14 +1148,14 @@ function renderHome(m) {
   const used = DB.items.filter(i => !i.pin && i.usage).sort((a, b) => (b.usage || 0) - (a.usage || 0)).slice(0, 24);
   if (pinned.length || used.length) {
     const sec = document.createElement("section"); sec.className = "cat";
-    sec.appendChild(sectionHead("⭐", "常用 / 置顶（hover 可 ✕ 移除，不删书签）", pinned.length + used.length, null, false));
+    sec.appendChild(sectionHead("⭐", t("frequentTop") + " " + t("hoverRemove"), pinned.length + used.length, null, false));
     sec.appendChild(gridOf(pinned.concat(used), true));
     m.appendChild(sec);
   }
   const tItems = folderItems(ROOT);
   if (tItems.length) {
     const sec = document.createElement("section"); sec.className = "cat";
-    sec.appendChild(sectionHead("📌", "工具栏书签", tItems.length, ROOT, false));
+    sec.appendChild(sectionHead("📌", t("toolbarBookmarks"), tItems.length, ROOT, false));
     sec.appendChild(gridOf(tItems));
     m.appendChild(sec);
   }
@@ -1019,18 +1171,18 @@ function renderHome(m) {
     if (list.length) sec.appendChild(gridOf(list));
     if (all.length > 12) {
       const more = document.createElement("div"); more.className = "showmore";
-      more.textContent = showAll ? "▲ 收起（共 " + all.length + " 个）" : "▼ 显示全部 " + all.length + " 个";
+      more.textContent = showAll ? t("collapse") + "（" + all.length + " " + t("totalItems") + "）" : t("showAll") + " " + all.length + " " + t("totalItems");
       more.onclick = () => { showAll ? expandedSec.delete(f.id) : expandedSec.add(f.id); render(); };
       sec.appendChild(more);
     }
     m.appendChild(sec);
   });
-  if (!m.children.length) m.appendChild(emptyBox("还没有任何书签，点击右上角 ➕ 添加"));
+  if (!m.children.length) m.appendChild(emptyBox(t("emptyBookmarks")));
 }
 function renderFolder(m, fid, titleOverride) {
   const f = folderById(fid); if (!f) { state.view = "home"; return render(); }
   const crumb = document.createElement("div"); crumb.className = "crumb";
-  const home = document.createElement("a"); home.textContent = "🏠 主页"; home.onclick = () => { state.view = "home"; state.folder = null; render(); };
+  const home = document.createElement("a"); home.textContent = "🏠 " + t("home"); home.onclick = () => { state.view = "home"; state.folder = null; render(); };
   crumb.appendChild(home);
   const path = folderPath(fid);
   path.forEach((p, idx) => {
@@ -1044,7 +1196,7 @@ function renderFolder(m, fid, titleOverride) {
   sec.appendChild(sectionHead(esc(folderEmoji(f)), titleOverride || f.name, items.length, fid, false));
   const subs = subChipsBar(fid); if (subs) sec.appendChild(subs);
   if (items.length) sec.appendChild(gridOf(items));
-  else sec.appendChild(emptyBox("此文件夹暂无书签"));
+  else sec.appendChild(emptyBox(t("emptyFolder")));
   m.appendChild(sec);
 }
 function renderFav(m) {
@@ -1290,6 +1442,7 @@ $("#btnTheme").onclick = () => {
   pref.theme = pref.theme === "dark" ? "light" : "dark"; savePrefs(); applyPrefs();
 };
 $("#btnDensity").onclick = () => { pref.dense = !pref.dense; savePrefs(); applyPrefs(); };
+$("#btnLang").onclick = () => { pref.lang = pref.lang === "zh" ? "en" : "zh"; savePrefs(); applyPrefs(); render(); };
 /* 在浏览器新标签页中打开本应用：仅扩展页可用（能拿到 runtime / tabs API） */
 function openManagerInTab() {
   const api = (typeof browser !== "undefined" && browser.runtime) ? browser
@@ -1308,17 +1461,37 @@ function openManagerInTab() {
 }
 if (IS_EXT_MODE) $("#btnOpenTab").style.display = "";
 $("#btnOpenTab").onclick = openManagerInTab;
+function applyLang() {
+  const L = key => t(key);
+  /* 顶栏静态元素 */
+  const si = $("#searchInput"); if (si) si.placeholder = L("searchBookmarks") + "…";
+  const ei = $("#engineInput"); if (ei) ei.placeholder = L("searchWeb") + "…";
+  const ot = $("#btnOpenTab"); if (ot) ot.innerHTML = "⛶ <span>" + L("newTab") + "</span>";
+  const ba = $("#btnAdd"); if (ba) ba.innerHTML = "➕ <span>" + L("addBookmark") + "</span>";
+  const bm = $("#btnManage"); if (bm) bm.innerHTML = pref.manage ? "🛠 <span>" + L("manage") + "</span>" : "🛠 <span>" + L("manage") + "</span>";
+  /* 配置中心标签页 */
+  document.querySelectorAll(".modal .etabs .tab").forEach(tab => {
+    const dt = tab.dataset.dt;
+    if (dt === "import") tab.textContent = L("importBookmarks");
+    else if (dt === "export") tab.textContent = L("exportBackup");
+    else if (dt === "shortcuts") tab.textContent = L("shortcuts");
+    else if (dt === "sync") tab.textContent = L("dataSource");
+    else if (dt === "lang") tab.textContent = L("lang");
+  });
+}
 function applyPrefs() {
   document.documentElement.dataset.theme = pref.theme;
   document.body.classList.toggle("dense", !!pref.dense);
   document.body.classList.toggle("manage", !!pref.manage);
   $("#btnTheme").textContent = pref.theme === "dark" ? "🌙" : "☀️";
   const den = $("#btnDensity");
-  den.innerHTML = pref.dense ? '▤ <span>紧凑</span>' : '▥ <span>宽松</span>';
+  den.innerHTML = pref.dense ? '▤ <span>' + t("densityOn") + '</span>' : '▥ <span>' + t("density") + '</span>';
   den.classList.toggle("density-on", !!pref.dense);
   den.dataset.tip = pref.dense ? "当前：紧凑模式（点击切回宽松）" : "当前：宽松模式（点击切换紧凑）";
   $("#btnManage").classList.toggle("danger-on", !!pref.manage);
-  $("#btnManage").innerHTML = pref.manage ? '🛠 <span>管理中</span>' : '🛠 <span>管理</span>';
+  const langBtn = $("#btnLang");
+  if (langBtn) langBtn.textContent = pref.lang === "zh" ? "EN" : "中";
+  applyLang();
 }
 
 /* ---------- 捐助 ---------- */
@@ -1362,12 +1535,25 @@ function loadEngines() {
 }
 let engines = loadEngines();
 function saveEngines() { try { localStorage.setItem(LS_ENGINES, JSON.stringify(engines)); } catch (e) { toast("保存引擎失败", "bad"); } fillEngineSelect(); }
+/* 1.6.4：引擎选择器按"当前选中项"的文字宽度自适应收窄——
+ * 原生 select 默认按最长选项（DuckDuckGo）撑宽，选中"百度"时右边会空一大截 */
+function sizeEngineSelect() {
+  const sel = $("#engineSelect");
+  if (!sel) return;
+  const opt = sel.selectedOptions && sel.selectedOptions[0];
+  const t = opt ? opt.textContent : "";
+  let px = 0;
+  for (const ch of t) px += /[^\x00-\xff]/.test(ch) ? 14 : 8;
+  sel.style.width = Math.min(px + 34, 140) + "px";
+}
 function fillEngineSelect() {
   const sel = $("#engineSelect");
   const cur = Math.min(+sel.value || 0, engines.length - 1);
   sel.innerHTML = "";
   engines.forEach((en, i) => { const o = document.createElement("option"); o.value = i; o.textContent = en.n || ("引擎" + (i + 1)); sel.appendChild(o); });
   if (cur >= 0) sel.value = cur;
+  if (!sel._sized) { sel._sized = true; sel.addEventListener("change", sizeEngineSelect); }
+  sizeEngineSelect();
 }
 fillEngineSelect();
 const engineUrl = (en, q) => String(en.u || "").replace("{q}", encodeURIComponent(q));
@@ -1477,6 +1663,7 @@ function renderSuggest() {
       e.preventDefault();
       showCtxMenu(e.clientX, e.clientY, [
         { act: "open", label: "↗ 新标签页打开" },
+        { act: "copy", label: "🔗 复制链接" },
         { sep: true },
         { act: "edit", label: "✏️ 编辑书签" }
       ], { it: row.it });
@@ -1530,6 +1717,7 @@ $("#ctxMenu").addEventListener("click", e => {
   hideCtxMenu();
   if (!t) return;
   if (act === "open" && t.it) { openMatched(t.it); }
+  else if (act === "copy" && t.it) { copyUrlWithTip(t.it.url, "链接已复制，粘贴到地址栏即可访问"); }
   else if (act === "edit" && t.it) { sBox.classList.remove("show"); sIn.value = ""; sIn.blur(); openBmModal(t.it.id); }
   else if (act === "fdEdit" && t.f) { openFdModal(t.f.id, null); }
   else if (act === "fdNewChild" && t.f) { openFdModal(null, t.f.id); }
@@ -1542,6 +1730,7 @@ function openMatched(it) {
   if (!it) return;
   it.usage = (it.usage || 0) + 1; persist();
   if (isFileUrl(it.url)) { openFileUrl(it.url); render(); return; }
+  if (isAboutUrl(it.url)) { copyUrlWithTip(it.url, "浏览器禁止插件直接打开 about: 页面：地址已复制，粘贴到地址栏即可访问"); render(); return; }
   if (isSafeUrl(it.url)) window.open(it.url, "_blank", "noopener");
   else if (isJsUrl(it.url)) { navigator.clipboard && navigator.clipboard.writeText(it.url); toast("脚本已复制"); }
   else toast("不支持的网址", "warn");
@@ -1793,15 +1982,123 @@ function evtToCombo(e) {
 }
 function comboDisplay(s) { return s ? s : "（未设置）"; }
 
+/* ---------- 全局快捷键（浏览器级，任意网页生效）· 1.6.4 新增 ----------
+ * Firefox 提供 commands.update() / reset() / openShortcutSettings()，扩展可以在自己的
+ *   配置页里直接改写全局快捷键 —— 所以火狐上这里就是"一键设置"，不用跑去 about:addons。
+ * Chrome / Edge 没有这些 API（浏览器刻意不允许扩展改写全局按键），只能跳转到
+ *   chrome://extensions/shortcuts 让用户自己设，然后回到本页即可看到真实绑定。
+ * 用能力检测（有没有 update）分流，而不是嗅探 UA，后续哪天 Chromium 支持了也能自动生效。 */
+function cmdApi() {
+  const capi = (typeof browser !== "undefined" && browser.runtime) ? browser
+             : ((typeof chrome !== "undefined" && chrome.runtime) ? chrome : null);
+  return (capi && capi.commands) ? capi.commands : null;
+}
+const CAN_EDIT_GLOBAL = (() => { const c = cmdApi(); return !!(c && typeof c.update === "function"); })();
+/* 火狐只有 toggle-sidebar；Chrome 还有浏览器原生处理的 _execute_side_panel（只读，用于显示） */
+const G_CMD = { toggle: isGeckoRuntime() ? "toggle-sidebar" : "_execute_side_panel", tab: "open-in-new-tab" };
+const G_DEFAULT = { toggle: "Alt+1", tab: "Alt+2" };
+
+/* 把键盘事件转成浏览器 commands 能接受的字符串：Ctrl+Alt+Q / Command+Shift+K …
+ * 与页内快捷键不同：全局键必须带 Ctrl / Alt / Command / MacCtrl，
+ * 单独 Shift+字母 或纯单键浏览器一律拒绝（防止误触劫持普通输入）。 */
+function evtToGlobalCombo(e) {
+  if (e.key === "Escape" || e.key === "Backspace") return e.key;
+  if (["Control", "Shift", "Alt", "Meta", "Process"].includes(e.key)) return null;
+  const isMac = /Mac|iPhone|iPad/i.test(navigator.platform || navigator.userAgent || "");
+  let key = e.key;
+  if (key.length === 1) key = key.toUpperCase();
+  const mods = [];
+  if (e.ctrlKey) mods.push(isMac ? "MacCtrl" : "Ctrl");
+  if (e.altKey) mods.push("Alt");
+  if (e.metaKey) mods.push("Command");
+  if (e.shiftKey && key.length > 1) mods.push("Shift");
+  const isFuncOrMedia = /^F([1-9]|1[0-9])$/.test(key) || /^Media/.test(key);
+  const hasRealMod = mods.some(m => m === "Ctrl" || m === "Alt" || m === "Command" || m === "MacCtrl");
+  if (!hasRealMod && !isFuncOrMedia) return null;
+  return mods.length ? mods.join("+") + "+" + key : key;
+}
+
+function hkMsg(msg, type) {
+  const r = $("#hkResult");
+  if (r) { r.className = "result" + (type === "bad" ? " bad" : type === "ok" ? " ok" : ""); r.textContent = msg; }
+  toast(msg, type === "bad" ? "warn" : "ok");
+}
+
+/* 调用浏览器写入绑定；不支持时统一返回失败原因，由上层提示。
+ * combo 为 null 表示"恢复默认"，优先走浏览器自带的 reset（能还原 manifest 的 suggested_key） */
+function setGlobalShortcut(cmdName, combo, done) {
+  const c = cmdApi();
+  if (!c || typeof c.update !== "function") { done(false, "当前浏览器不允许扩展改写快捷键"); return; }
+  let p;
+  try {
+    p = (combo === null && typeof c.reset === "function")
+      ? c.reset(cmdName)
+      : c.update({ name: cmdName, shortcut: combo });
+  } catch (err) { done(false, (err && err.message) || String(err)); return; }
+  if (p && typeof p.then === "function") p.then(() => done(true, "")).catch(err => done(false, (err && err.message) || String(err)));
+  else done(true, "");
+}
+
+function applyGlobal(cmdName, combo, inp, okMsg) {
+  setGlobalShortcut(cmdName, combo, (ok, err) => {
+    if (ok) hkMsg(okMsg, "ok");
+    else hkMsg("设置失败：" + err + "（该组合可能已被浏览器或其他扩展占用，换一个试试）", "bad");
+    if (inp && inp.blur) inp.blur();
+    refreshGlobalShortcuts();
+  });
+}
+
 /* 刷新快捷键面板：把 pref 里的当前值显示到输入框 */
 function refreshShortcutsTab() {
   const fill = (id, val) => { const el = $(id); if (el) el.value = comboDisplay(val); };
   fill("#hkToggle", pref.hkToggle);
   fill("#hkOpenTab", pref.hkOpenTab);
   fill("#hkSearch", pref.hkSearch);
-  const tg = $("#hkToggleGlobal"), og = $("#hkOpenTabGlobal");
-  if (tg) tg.textContent = "Alt+1";
-  if (og) og.textContent = "Alt+2";
+  refreshGlobalShortcuts();
+}
+
+/* 实时读取浏览器级全局快捷键的真实绑定（commands.getAll） */
+function refreshGlobalShortcuts() {
+  const setVal = (el, val) => {
+    if (!el) return;
+    el.value = val || "";
+    el.placeholder = val ? "" : "未绑定 · 点此设置";
+    el.style.color = val ? "" : "var(--danger)";
+  };
+  const note = $("#ghkNote");
+  if (note) {
+    note.innerHTML = CAN_EDIT_GLOBAL
+      ? "✅ 当前是 Firefox，支持<b>在这里直接设置</b>：点输入框 → 按下组合键，立即全局生效，不用去浏览器设置页。"
+      : "⚠ Chrome / Edge 不允许扩展改写快捷键，点输入框会<b>直接打开浏览器的快捷键设置页</b>，在那里设好后回到本页即可看到最新绑定。";
+  }
+  const c = cmdApi();
+  if (!c || !c.getAll) { setVal($("#ghkToggle"), ""); setVal($("#ghkOpenTab"), ""); return; }
+  try {
+    const p = c.getAll();
+    const apply = list => {
+      let toggleKey = "", tabKey = "";
+      (list || []).forEach(cmd => {
+        if (!cmd) return;
+        if (cmd.name === "open-in-new-tab") tabKey = cmd.shortcut || "";
+        /* _execute_side_panel（Chrome 原生打开）与 toggle-sidebar（智能切换）
+         * 都属于"切换侧栏"，优先显示已绑定的那个 */
+        if ((cmd.name === "_execute_side_panel" || cmd.name === "toggle-sidebar") && cmd.shortcut && !toggleKey) {
+          toggleKey = cmd.shortcut;
+        }
+      });
+      setVal($("#ghkToggle"), toggleKey);
+      setVal($("#ghkOpenTab"), tabKey);
+      updateGlobalClearLabels();
+    };
+    if (p && typeof p.then === "function") p.then(apply).catch(() => { setVal($("#ghkToggle"), ""); setVal($("#ghkOpenTab"), ""); });
+    else apply(p);
+  } catch (e) { setVal($("#ghkToggle"), ""); setVal($("#ghkOpenTab"), ""); }
+}
+/* 有绑定 → 显示「清除」；已清空 → 显示「恢复默认」，一个按钮两种用途 */
+function updateGlobalClearLabels() {
+  const set = (btnId, inpId) => { const b = $(btnId), i = $(inpId); if (b && i) b.textContent = i.value ? "清除" : "恢复默认"; };
+  set("#ghkToggleClear", "#ghkToggle");
+  set("#ghkOpenTabClear", "#ghkOpenTab");
 }
 /* 启动录制：用户点输入框 → 监听 keydown → 存到 pref */
 function bindHotkeyInput(inputSel, prefKey) {
@@ -1845,6 +2142,104 @@ bindHotkeyInput("#hkSearch", "hkSearch");
 $("#hkToggleReset").onclick = () => { pref.hkToggle = DEFAULT_HK.hkToggle; savePrefs(); refreshShortcutsTab(); const r = $("#hkResult"); if (r) { r.className = "result ok"; r.textContent = "已恢复默认：1"; } };
 $("#hkOpenTabReset").onclick = () => { pref.hkOpenTab = DEFAULT_HK.hkOpenTab; savePrefs(); refreshShortcutsTab(); const r = $("#hkResult"); if (r) { r.className = "result ok"; r.textContent = "已恢复默认：2"; } };
 $("#hkSearchReset").onclick = () => { pref.hkSearch = DEFAULT_HK.hkSearch; savePrefs(); refreshShortcutsTab(); const r = $("#hkResult"); if (r) { r.className = "result ok"; r.textContent = "已恢复默认：/"; } };
+
+/* 打开浏览器的快捷键设置页：
+ * 火狐 137+ 有 openShortcutSettings() 可直接唤起；Chromium 可以用 tabs.create 打开
+ * chrome://extensions/shortcuts（浏览器允许这个特定地址）；都不行再退回复制地址。 */
+function openGlobalShortcutSettings() {
+  const c = cmdApi();
+  if (c && typeof c.openShortcutSettings === "function") {
+    try {
+      const p = c.openShortcutSettings();
+      if (p && typeof p.then === "function") {
+        p.then(() => hkMsg("已打开浏览器的快捷键设置页", "ok")).catch(() => fallbackOpenGlobal());
+      } else hkMsg("已打开浏览器的快捷键设置页", "ok");
+      return;
+    } catch (e) { /* 继续走兜底 */ }
+  }
+  fallbackOpenGlobal();
+}
+function fallbackOpenGlobal() {
+  const isFF = isGeckoRuntime();
+  const isEdge = !isFF && /Edg(e|A|iOS)?\//.test(navigator.userAgent);
+  const url = isFF ? "about:addons" : isEdge ? "edge://extensions/shortcuts" : "chrome://extensions/shortcuts";
+  const capi = (typeof browser !== "undefined" && browser.runtime) ? browser
+             : ((typeof chrome !== "undefined" && chrome.runtime) ? chrome : null);
+  if (!isFF && capi && capi.tabs && capi.tabs.create) {
+    try { capi.tabs.create({ url: url }); hkMsg("已打开快捷键设置页：" + url, "ok"); return; }
+    catch (e) { /* 继续走复制兜底 */ }
+  }
+  const steps = isFF
+    ? "已复制 about:addons：粘贴到地址栏回车 → 右上角齿轮 →「管理扩展快捷键」"
+    : "已复制 " + url + "：粘贴到地址栏回车 → 找到「悟道书签管理器」→ 点输入框按下组合键";
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(url).then(() => hkMsg(steps, "ok"), () => hkMsg("请手动打开：" + url, "bad"));
+  } else hkMsg("请手动打开：" + url, "bad");
+}
+
+/* 全局快捷键输入框：能改就直接录制写入，不能改就跳浏览器设置页 */
+function bindGlobalInput(inputSel, cmdName, defaultCombo) {
+  const inp = $(inputSel);
+  if (!inp) return;
+  inp.addEventListener("focus", () => {
+    if (!CAN_EDIT_GLOBAL) { inp.blur(); openGlobalShortcutSettings(); return; }
+    inp.value = "按下组合键…"; inp.style.background = "var(--accent-soft)";
+  });
+  inp.addEventListener("blur", () => { inp.style.background = ""; refreshGlobalShortcuts(); });
+  inp.addEventListener("keydown", e => {
+    e.preventDefault(); e.stopPropagation();
+    const combo = evtToGlobalCombo(e);
+    if (combo === "Escape") { inp.blur(); return; }
+    if (combo === "Backspace") { applyGlobal(cmdName, "", null, "已清除该全局快捷键"); inp.blur(); return; }
+    if (!combo) {
+      hkMsg("无效组合：全局快捷键必须带 Ctrl / Alt / Command（只用 Shift 或单个按键浏览器不接受）", "bad");
+      inp.blur(); return;
+    }
+    applyGlobal(cmdName, combo, inp, "已设置全局快捷键：" + combo + "（立即生效）");
+  });
+}
+bindGlobalInput("#ghkToggle", G_CMD.toggle, G_DEFAULT.toggle);
+bindGlobalInput("#ghkOpenTab", G_CMD.tab, G_DEFAULT.tab);
+
+/* 清除 / 恢复默认：有绑定就清除，已清空就恢复默认 */
+function bindGlobalClear(btnSel, inpSel, cmdName, defaultCombo) {
+  const b = $(btnSel);
+  if (!b) return;
+  b.onclick = () => {
+    if (!CAN_EDIT_GLOBAL) { openGlobalShortcutSettings(); return; }
+    const inp = $(inpSel);
+    const has = inp && inp.value;
+    applyGlobal(cmdName, has ? "" : null, null,
+      has ? "已清除该全局快捷键" : "已恢复默认：" + defaultCombo);
+  };
+}
+bindGlobalClear("#ghkToggleClear", "#ghkToggle", G_CMD.toggle, G_DEFAULT.toggle);
+bindGlobalClear("#ghkOpenTabClear", "#ghkOpenTab", G_CMD.tab, G_DEFAULT.tab);
+
+/* 「打开浏览器快捷键设置页」按钮 */
+const btnGlobalHk = $("#btnGlobalHk");
+if (btnGlobalHk) btnGlobalHk.onclick = () => { openGlobalShortcutSettings(); };
+
+/* 绑定发生变化时（Firefox 有 onChanged；Chrome 没有事件，改为页面重新可见时重读） */
+const cmdApiRef = cmdApi();
+if (cmdApiRef && cmdApiRef.onChanged) {
+  try { cmdApiRef.onChanged.addListener(() => refreshGlobalShortcuts()); } catch (e) { /* 忽略 */ }
+}
+document.addEventListener("visibilitychange", () => {
+  const box = $("#dtShortcuts");
+  if (document.visibilityState === "visible" && box && box.style.display !== "none") refreshGlobalShortcuts();
+});
+
+/* 刷新语言面板 */
+function refreshLangTab() {
+  $$('input[name="langChoice"]').forEach(r => { r.checked = (r.value === pref.lang); });
+}
+$$('input[name="langChoice"]').forEach(r => {
+  r.addEventListener("change", () => {
+    pref.lang = r.value; savePrefs(); applyPrefs(); render(); refreshLangTab();
+    const lr = $("#langResult"); if (lr) { lr.className = "result ok"; lr.textContent = pref.lang === "zh" ? "已切换为中文" : "Switched to English"; }
+  });
+});
 
 /* 刷新数据源面板：根据 pref.syncMode 选中 radio，控制「从浏览器导入」按钮显隐 */
 function refreshSyncTab() {
@@ -1917,22 +2312,27 @@ document.addEventListener("keydown", e => {
   if (!combo) return;
   if (pref.hkToggle && combo === pref.hkToggle) {
     e.preventDefault();
-    /* 切换侧栏：在 sidePanel 里调用 window.close() 关闭侧栏；非侧栏环境提示用户 */
+    /* 切换侧栏：Firefox sidebar 里 window.close() 无效，需通过 background 调 sidebarAction.close() */
     if (IS_EXT_MODE) {
-      try {
-        /* Chrome sidePanel / Firefox sidebar 内的页面可以用 window.close() 关掉自己 */
-        window.close();
-        return;
-      } catch (err) {}
-      toast("侧栏已请求关闭", "ok");
-    } else {
-      toast("网页预览模式：此快捷键需在扩展侧栏内使用", "warn");
+      const _api = (typeof browser !== "undefined" && browser.runtime) ? browser
+                 : ((typeof chrome !== "undefined" && chrome.runtime) ? chrome : null);
+      if (_api && _api.runtime && _api.runtime.sendMessage) {
+        try {
+          const p = _api.runtime.sendMessage({ type: "close-sidebar" });
+          if (p && p.catch) p.catch(() => {});
+        } catch (e) {}
+      }
+      /* Chrome sidePanel 可以 window.close() */
+      try { window.close(); } catch (e) {}
+      return;
     }
+    toast("网页预览模式：此快捷键需在扩展侧栏内使用", "warn");
     return;
   }
   if (pref.hkOpenTab && combo === pref.hkOpenTab) {
     e.preventDefault();
     openManagerInTab();
+    toast("已在新标签页打开", "ok");
     return;
   }
 }, true);

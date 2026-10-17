@@ -1,0 +1,26 @@
+{
+  "extName": {
+    "message": "Wudao Bookmark Manager",
+    "description": "Extension name, shown in store title and browser toolbar"
+  },
+  "extDescription": {
+    "message": "Click to open a resizable sidebar: collapsible category navigation, dual search bars, drag-to-organize, dedup, import/export, QR donation. New installs default to blank standalone storage; switch to browser bookmark sync mode in settings; supports custom shortcuts (1 toggle sidebar / 2 open in new tab).",
+    "description": "Extension description, shown in store listing"
+  },
+  "extActionTitle": {
+    "message": "Wudao Bookmark Manager (Click to open sidebar · Alt+1 toggle · Alt+2 new tab)",
+    "description": "Toolbar icon hover tooltip"
+  },
+  "cmdOpenSidePanel": {
+    "message": "Open Wudao side panel (handled natively by the browser, most reliable)",
+    "description": "Global shortcut Alt+1 description (_execute_side_panel reserved command)"
+  },
+  "cmdToggleSidebar": {
+    "message": "Toggle Wudao side panel on / off (bind your own key; closing requires Chrome 141+)",
+    "description": "Smart toggle command description (no default binding to avoid conflicts)"
+  },
+  "cmdOpenInNewTab": {
+    "message": "Open Wudao Bookmark Manager in a new tab",
+    "description": "Global shortcut Alt+2 description"
+  }
+}

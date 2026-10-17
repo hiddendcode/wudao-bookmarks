@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "default_locale": "zh_CN",
   "name": "__MSG_extName__",
-  "version": "1.4.9",
+  "version": "1.6.5",
   "description": "__MSG_extDescription__",
   "author": "wudao",
   "minimum_chrome_version": "116",
@@ -28,10 +28,13 @@
     }
   },
   "commands": {
-    "toggle-sidebar": {
+    "_execute_side_panel": {
       "suggested_key": {
         "default": "Alt+1"
       },
+      "description": "__MSG_cmdOpenSidePanel__"
+    },
+    "toggle-sidebar": {
       "description": "__MSG_cmdToggleSidebar__"
     },
     "open-in-new-tab": {
