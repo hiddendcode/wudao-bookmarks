@@ -4,7 +4,7 @@
 > 可视化书签管理、双搜索栏、拖拽整理、去重、导入导出，支持与浏览器书签实时互通。不收集任何用户数据，即插即用。
 
 🌐 **项目主页**：<https://wudaoshuqianguanliqi-0p8rwg6179h.qoder.zone/>  
-📥 **下载地址**：[GitHub Releases](https://github.com/hiddendcode/wudao-bookmarks/releases)
+📥 **下载地址**：[GitHub Releases](https://github.com/hiddendcode/wudao-bookmarks/releases)<br>
 📥**Firefox 用户**: [<img src="https://blog.mozilla.org/addons/files/2020/04/get-the-addon-fx-apr-2020.svg" width="129" height="45" alt="Get the Firefox Add-on" />](https://addons.mozilla.org/en-US/firefox/addon/%E6%82%9F%E9%81%93%E4%B9%A6%E7%AD%BE%E7%AE%A1%E7%90%86%E5%99%A8/) 
 
 [![GitHub release](https://img.shields.io/github/v/release/hiddendcode/wudao-bookmarks?display_name=tag)](https://github.com/hiddendcode/wudao-bookmarks/releases)
