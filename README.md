@@ -1,6 +1,6 @@
 # 悟道书签管理器
 
-> 完全私有化的本地书签管理器，支持 Chrome / Edge / Firefox。  
+> 完全私有化的本地书签管理器**插件**，支持 Chrome / Edge / Firefox。  
 > 可视化书签管理、双搜索栏、拖拽整理、去重、导入导出，支持与浏览器书签实时互通。不收集任何用户数据，即插即用。
 
 🌐 **项目主页**：<https://wudaoshuqianguanliqi-0p8rwg6179h.qoder.zone/>  
